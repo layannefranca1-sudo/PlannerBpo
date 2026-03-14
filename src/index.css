@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-[#0a0a0a] text-slate-200 antialiased;
+  }
+
+  input, select, textarea {
+    @apply bg-white/5 border border-white/10 text-white outline-none transition-all;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    @apply bg-white/10 border-indigo-500 ring-0;
+  }
+
+  button {
+    @apply cursor-pointer active:scale-95 transition-all;
+  }
+
+  /* Fix for select options in some browsers */
+  option {
+    @apply bg-[#1a1a1a] text-white;
+  }
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-800 rounded-full;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-700;
+  }
+}
+
+.glass-card {
+  @apply bg-white/5 backdrop-blur-md border border-white/10;
+}
+
+.light-card {
+  @apply bg-white text-slate-900 border border-slate-200 shadow-lg;
+}
+
+.kanban-column {
+  @apply bg-[#111] rounded-2xl p-4 min-h-[600px] border border-white/5;
+}
+
+.kanban-card {
+  @apply bg-[#1a1a1a] p-4 rounded-xl shadow-lg border border-white/5 hover:border-indigo-500 transition-all cursor-grab active:cursor-grabbing;
+}
