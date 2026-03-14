@@ -10,7 +10,7 @@ export type Priority = 'BAIXA' | 'MEDIA' | 'ALTA';
 export type Status = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'ATRASADA';
 export type Frequency = 'DIAS_UTEIS' | 'SEMANAL' | 'MENSAL';
 
-export interface Station {
+export interface Empresa {
   id: number;
   name: string;
 }
@@ -23,7 +23,7 @@ export interface ChecklistItem {
 
 export interface Task {
   id: number;
-  station_id: number;
+  empresa_id: number;
   template_id?: number;
   date: string;
   status: Status;
@@ -32,7 +32,7 @@ export interface Task {
   responsible: string;
   priority: Priority;
   checklist: ChecklistItem[];
-  station_name?: string;
+  empresa_name?: string;
 }
 
 export interface DashboardStats {

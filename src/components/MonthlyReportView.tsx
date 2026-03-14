@@ -33,14 +33,14 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabaseClient';
-import { User, Station, Task, Status } from '../types';
+import { User, Empresa, Task, Status } from '../types';
 
 interface MonthlyReportViewProps {
   currentUser: User;
-  stations: Station[];
+  empresas: Empresa[];
 }
 
-export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewProps) => {
+export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewProps) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,7 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
   // Filters
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [filterStation, setFilterStation] = useState('');
+  const [filterEmpresa, setFilterEmpresa] = useState('');
   const [filterUser, setFilterUser] = useState('');
 
   const months = [
@@ -74,7 +74,7 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
 
   useEffect(() => {
     fetchReportData();
-  }, [selectedMonth, selectedYear, filterStation, filterUser]);
+  }, [selectedMonth, selectedYear, filterEmpresa, filterUser]);
 
   const fetchUsers = async () => {
     try {
@@ -90,7 +90,7 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
   const fetchReportData = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('tasks').select('*, stations(name), profiles:user_id(name)');
+      let query = supabase.from('tasks').select('*, empresas(name), profiles:user_id(name)');
       
       // Month/Year filtering
       const startDate = new Date(selectedYear, selectedMonth - 1, 1);
@@ -99,8 +99,8 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
       query = query.gte('date', startDate.toISOString().split('T')[0])
                    .lte('date', endDate.toISOString().split('T')[0]);
 
-      if (filterStation) {
-        query = query.eq('station_id', filterStation);
+      if (filterEmpresa) {
+        query = query.eq('empresa_id', filterEmpresa);
       }
       
       if (filterUser) {
@@ -114,7 +114,7 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
       if (!error && data) {
         const formattedTasks = data.map(t => ({
           ...t,
-          station_name: t.stations?.name,
+          empresa_name: t.empresas?.name,
           user_name: t.profiles?.name
         }));
         setTasks(formattedTasks);
@@ -144,10 +144,10 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
     { name: 'Atrasadas', value: stats.delayed, color: '#ef4444' },
   ].filter(d => d.value > 0), [stats]);
 
-  const stationChartData = useMemo(() => {
+  const empresaChartData = useMemo(() => {
     const counts: Record<string, number> = {};
     tasks.forEach(t => {
-      counts[t.station_name] = (counts[t.station_name] || 0) + 1;
+      counts[t.empresa_name] = (counts[t.empresa_name] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [tasks]);
@@ -168,14 +168,14 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
     const tableData = tasks.map(t => [
       format(parseISO(t.date), 'dd/MM/yyyy'),
       t.name,
-      t.station_name,
+      t.empresa_name,
       t.user_name || t.responsible || 'N/A',
       t.status
     ]);
 
     autoTable(doc, {
       startY: 65,
-      head: [['Data', 'Tarefa', 'Posto', 'Responsável', 'Status']],
+      head: [['Data', 'Tarefa', 'Empresa', 'Responsável', 'Status']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [99, 102, 241] }
@@ -188,7 +188,7 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
     const data = tasks.map(t => ({
       Data: format(parseISO(t.date), 'dd/MM/yyyy'),
       Tarefa: t.name,
-      Posto: t.station_name,
+      Empresa: t.empresa_name,
       Responsável: t.user_name || t.responsible || 'N/A',
       Status: t.status
     }));
@@ -236,14 +236,14 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Posto</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Empresa</label>
               <select 
-                value={filterStation}
-                onChange={(e) => setFilterStation(e.target.value)}
+                value={filterEmpresa}
+                onChange={(e) => setFilterEmpresa(e.target.value)}
                 className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all min-w-[180px]"
               >
-                <option value="">Todos os Postos</option>
-                {stations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="">Todas as Empresas</option>
+                {empresas.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
 
@@ -338,11 +338,11 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
         <div className="bg-white/5 p-8 rounded-[2rem] border border-white/5">
           <div className="flex items-center gap-3 mb-8">
             <BarChartIcon className="w-5 h-5 text-indigo-400" />
-            <h3 className="text-sm font-black text-white uppercase tracking-widest">Tarefas por Posto</h3>
+            <h3 className="text-sm font-black text-white uppercase tracking-widest">Tarefas por Empresa</h3>
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stationChartData}>
+              <BarChart data={empresaChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis 
                   dataKey="name" 
@@ -386,7 +386,7 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
               <tr className="bg-white/[0.02]">
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Data</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Tarefa</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Posto</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Empresa</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Responsável</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Status</th>
               </tr>
@@ -422,7 +422,7 @@ export const MonthlyReportView = ({ currentUser, stations }: MonthlyReportViewPr
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-2">
                         <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                        <span className="text-xs font-bold text-slate-400">{task.station_name}</span>
+                        <span className="text-xs font-bold text-slate-400">{task.empresa_name}</span>
                       </div>
                     </td>
                     <td className="px-8 py-6">

@@ -41,7 +41,7 @@ import {
   Legend
 } from 'recharts';
 import { supabase } from '../lib/supabaseClient';
-import { User, Station, Task, DashboardStats, Status, Priority, ChecklistItem } from '../types';
+import { User, Empresa, Task, DashboardStats, Status, Priority, ChecklistItem } from '../types';
 
 // --- Badges ---
 
@@ -88,33 +88,33 @@ export const DashboardView = ({
   progressData, 
   delayedTasks, 
   delayedRanking, 
-  setSelectedStationId, 
+  setSelectedEmpresaId, 
   setActiveTab, 
   setViewingTask,
   fetchData,
-  filterStation,
-  setFilterStation,
+  filterEmpresa,
+  setFilterEmpresa,
   selectedMonth,
   setSelectedMonth,
   filterStatus,
   setFilterStatus,
-  stations
+  empresas
 }: {
   stats: DashboardStats,
   progressData: any[],
   delayedTasks: Task[],
   delayedRanking: any[],
-  setSelectedStationId: (id: number | null) => void,
+  setSelectedEmpresaId: (id: number | null) => void,
   setActiveTab: (tab: any) => void,
   setViewingTask: (task: Task | null) => void,
   fetchData: () => Promise<void>,
-  filterStation: string,
-  setFilterStation: (val: string) => void,
+  filterEmpresa: string,
+  setFilterEmpresa: (val: string) => void,
   selectedMonth: number,
   setSelectedMonth: (val: number) => void,
   filterStatus: string,
   setFilterStatus: (val: string) => void,
-  stations: Station[]
+  empresas: Empresa[]
 }) => {
   return (
     <div className="space-y-12">
@@ -148,7 +148,7 @@ export const DashboardView = ({
                 <CheckCircle2 className="w-5 h-5 text-indigo-400" />
               </div>
               <div>
-                <h3 className="text-sm font-black text-white uppercase tracking-widest">Progresso por Posto</h3>
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Progresso por Empresa</h3>
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Taxa de conclusão mensal</p>
               </div>
             </div>
@@ -208,7 +208,7 @@ export const DashboardView = ({
             </div>
             <div>
               <h3 className="text-sm font-black text-white uppercase tracking-widest">Ranking de Atrasos</h3>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Postos com maior incidência</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Empresas com maior incidência</p>
             </div>
           </div>
           <div className="space-y-6">
@@ -244,12 +244,12 @@ export const DashboardView = ({
 
 export const MyTasksView = ({ 
   tasks, 
-  stations, 
+  empresas, 
   onUpdate, 
   onViewTask 
 }: { 
   tasks: Task[], 
-  stations: Station[],
+  empresas: Empresa[],
   onUpdate: (taskId: number, newStatus: Status) => Promise<void>,
   onViewTask: (task: Task) => void
 }) => {
@@ -281,7 +281,7 @@ export const MyTasksView = ({
               <TaskCard 
                 key={task.id} 
                 task={task} 
-                stations={stations} 
+                empresas={empresas} 
                 onUpdate={onUpdate} 
                 onViewTask={onViewTask} 
               />
@@ -300,7 +300,7 @@ export const MyTasksView = ({
             <TaskCard 
               key={task.id} 
               task={task} 
-              stations={stations} 
+              empresas={empresas} 
               onUpdate={onUpdate} 
               onViewTask={onViewTask} 
             />
@@ -352,7 +352,7 @@ export const KanbanView = ({ tasks, onUpdate, setViewingTask }: { tasks: Task[],
                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                   <span className="flex items-center gap-2">
                     <MapPin className="w-3 h-3" />
-                    {task.station_name}
+                    {task.empresa_name}
                   </span>
                   <span>{format(parseISO(task.date), 'dd/MM')}</span>
                 </div>
@@ -459,51 +459,51 @@ export const CalendarView = ({ tasks, setViewingTask }: { tasks: Task[], setView
   );
 };
 
-export const StationsView = ({ 
-  stations, 
+export const EmpresasView = ({ 
+  empresas, 
   tasks, 
   progressData, 
   setViewingTask 
 }: { 
-  stations: Station[], 
+  empresas: Empresa[], 
   tasks: Task[], 
   progressData: any[],
   setViewingTask: (task: Task | null) => void 
 }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-      {stations.map((station: any) => {
-        const stationTasks = tasks.filter((t: any) => t.station_id === station.id);
-        const stationProgress = progressData.find((p: any) => p.id === station.id)?.progress || 0;
+      {empresas.map((empresa: any) => {
+        const empresaTasks = tasks.filter((t: any) => t.empresa_id === empresa.id);
+        const empresaProgress = progressData.find((p: any) => p.id === empresa.id)?.progress || 0;
         
         return (
-          <div key={station.id} className="bg-white/5 rounded-[3rem] border border-white/5 overflow-hidden flex flex-col hover:bg-white/[0.08] transition-all group">
+          <div key={empresa.id} className="bg-white/5 rounded-[3rem] border border-white/5 overflow-hidden flex flex-col hover:bg-white/[0.08] transition-all group">
             <div className="p-10 border-b border-white/5 bg-white/[0.02]">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                     <MapPin className="w-6 h-6 text-indigo-400" />
                   </div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight">{station.name}</h3>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">{empresa.name}</h3>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Conclusão</p>
-                  <p className="text-xl font-black text-emerald-500">{stationProgress}%</p>
+                  <p className="text-xl font-black text-emerald-500">{empresaProgress}%</p>
                 </div>
               </div>
               <div className="h-2 bg-white/5 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-emerald-500 transition-all duration-1000" 
-                  style={{ width: `${stationProgress}%` }} 
+                  style={{ width: `${empresaProgress}%` }} 
                 />
               </div>
             </div>
             <div className="p-8 space-y-4 flex-1">
-              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Tarefas do Posto</h4>
-              {stationTasks.length === 0 ? (
+              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Tarefas da Empresa</h4>
+              {empresaTasks.length === 0 ? (
                 <p className="text-xs text-slate-600 font-bold uppercase tracking-widest py-4">Nenhuma tarefa vinculada</p>
               ) : (
-                stationTasks.slice(0, 5).map((task: any) => (
+                empresaTasks.slice(0, 5).map((task: any) => (
                   <div 
                     key={task.id}
                     onClick={() => setViewingTask(task)}
@@ -523,10 +523,10 @@ export const StationsView = ({
 };
 
 export const SettingsView = ({ 
-  stations, 
+  empresas, 
   templates, 
   fetchData, 
-  handleDeleteStation, 
+  handleDeleteEmpresa, 
   handleDeleteTemplate,
   handleDeleteAllTasks,
   handleEditTemplate,
@@ -539,10 +539,10 @@ export const SettingsView = ({
   handleAddTemplate,
   currentUser
 }: { 
-  stations: Station[], 
+  empresas: Empresa[], 
   templates: any[], 
   fetchData: () => Promise<void>, 
-  handleDeleteStation: (id: number) => Promise<void>, 
+  handleDeleteEmpresa: (id: number) => Promise<void>, 
   handleDeleteTemplate: (id: number) => Promise<void>,
   handleDeleteAllTasks: (id: number) => Promise<void>,
   handleEditTemplate: (template: any) => void,
@@ -555,50 +555,50 @@ export const SettingsView = ({
   handleAddTemplate: () => Promise<void>,
   currentUser: User
 }) => {
-  const [newStation, setNewStation] = useState('');
+  const [newEmpresa, setNewEmpresa] = useState('');
 
-  const handleAddStation = async () => {
+  const handleAddEmpresa = async () => {
     if (currentUser.role !== 'ADMIN') {
-      alert('Apenas administradores podem cadastrar postos.');
+      alert('Apenas administradores podem cadastrar empresas.');
       return;
     }
-    if (!newStation) return;
+    if (!newEmpresa) return;
     try {
-      const { error } = await supabase.from('stations').insert({ name: newStation });
+      const { error } = await supabase.from('empresas').insert({ name: newEmpresa });
       if (!error) {
-        setNewStation('');
+        setNewEmpresa('');
         await fetchData();
-        alert('Posto cadastrado com sucesso!');
+        alert('Empresa cadastrada com sucesso!');
       } else {
         throw error;
       }
     } catch (error: any) {
-      console.error('Error adding station:', error);
-      alert(error.message || 'Erro de conexão ao cadastrar posto');
+      console.error('Error adding empresa:', error);
+      alert(error.message || 'Erro de conexão ao cadastrar empresa');
     }
   };
 
   return (
     <div className="space-y-12 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Station Registration */}
+        {/* Empresa Registration */}
         <div className="space-y-8">
           {currentUser.role === 'ADMIN' && (
             <div className="glass-card p-8 rounded-[2rem]">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
                 <Fuel className="w-6 h-6 text-[#a5b4fc]" />
-                Cadastrar Posto
+                Cadastrar Empresa
               </h3>
               <div className="flex gap-3">
                 <input 
                   type="text" 
-                  placeholder="Nome do Posto"
-                  value={newStation}
-                  onChange={(e) => setNewStation(e.target.value)}
+                  placeholder="Nome da Empresa"
+                  value={newEmpresa}
+                  onChange={(e) => setNewEmpresa(e.target.value)}
                   className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-white outline-none focus:border-indigo-500 transition-all"
                 />
                 <button 
-                  onClick={handleAddStation}
+                  onClick={handleAddEmpresa}
                   className="bg-[#6366f1] hover:bg-indigo-500 text-white px-8 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-600/20"
                 >
                   Adicionar
@@ -609,10 +609,10 @@ export const SettingsView = ({
 
           <div className="glass-card rounded-[2rem] overflow-hidden">
             <div className="p-6 border-b border-white/10 bg-white/5">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Postos Cadastrados</h4>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Empresas Cadastradas</h4>
             </div>
             <div className="divide-y divide-white/5">
-              {stations.map((s: any) => (
+              {empresas.map((s: any) => (
                 <div key={s.id} className="p-6 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
                   <span className="font-bold text-slate-200">{s.name}</span>
                   {currentUser.role === 'ADMIN' && (
@@ -620,18 +620,18 @@ export const SettingsView = ({
                       <button 
                         onClick={() => handleDeleteAllTasks(s.id)}
                         className="p-2 text-slate-500 hover:text-amber-500 hover:bg-amber-500/10 rounded-xl transition-all"
-                        title="Excluir todas as tarefas deste posto"
+                        title="Excluir todas as tarefas desta empresa"
                       >
                         <CheckSquare className="w-5 h-5" />
                       </button>
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log('Delete station button clicked for id:', s.id);
-                          handleDeleteStation(s.id);
+                          console.log('Delete empresa button clicked for id:', s.id);
+                          handleDeleteEmpresa(s.id);
                         }}
                         className="p-2 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
-                        title="Excluir posto"
+                        title="Excluir empresa"
                       >
                         <Trash2 className="w-5 h-5 pointer-events-none" />
                       </button>
@@ -652,14 +652,14 @@ export const SettingsView = ({
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Posto *</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Empresa *</label>
                 <select 
-                  value={newTemplate.station_id}
-                  onChange={(e) => setNewTemplate({...newTemplate, station_id: e.target.value})}
+                  value={newTemplate.empresa_id}
+                  onChange={(e) => setNewTemplate({...newTemplate, empresa_id: e.target.value})}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none focus:border-emerald-500 transition-all"
                 >
                   <option value="">Selecionar...</option>
-                  {stations.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {empresas.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
@@ -776,7 +776,7 @@ export const SettingsView = ({
                 onClick={() => {
                   setEditingTemplate(null);
                   setNewTemplate({
-                    station_id: '',
+                    empresa_id: '',
                     name: '',
                     description: '',
                     responsible: currentUser.name,
@@ -813,7 +813,7 @@ export const SettingsView = ({
               <thead>
                 <tr className="bg-white/5 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
                   <th className="px-8 py-4">Tarefa</th>
-                  <th className="px-8 py-4">Posto</th>
+                  <th className="px-8 py-4">Empresa</th>
                   <th className="px-8 py-4">Responsável</th>
                   <th className="px-8 py-4">Frequência</th>
                   <th className="px-8 py-4">Período</th>
@@ -828,7 +828,7 @@ export const SettingsView = ({
                       <div className="text-[10px] text-slate-500 mt-1 line-clamp-1">{t.description}</div>
                     </td>
                     <td className="px-8 py-6">
-                      <span className="text-xs font-bold text-slate-400">{stations.find((s: any) => s.id === t.station_id)?.name || 'N/A'}</span>
+                      <span className="text-xs font-bold text-slate-400">{empresas.find((s: any) => s.id === t.empresa_id)?.name || 'N/A'}</span>
                     </td>
                     <td className="px-8 py-6 text-xs text-slate-400">{t.responsible}</td>
                     <td className="px-8 py-6">
@@ -883,13 +883,13 @@ export const SettingsView = ({
 
 interface TaskCardProps {
   task: Task;
-  stations: Station[];
+  empresas: Empresa[];
   onUpdate: (taskId: number, newStatus: Status) => Promise<void>;
   onViewTask: (task: Task) => void;
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task, stations, onUpdate, onViewTask }) => {
-  const station = stations.find(s => s.id === task.station_id);
+export const TaskCard: React.FC<TaskCardProps> = ({ task, empresas, onUpdate, onViewTask }) => {
+  const empresa = empresas.find(s => s.id === task.empresa_id);
   const checklist = task.checklist || [];
   const completedItems = checklist.filter((i: ChecklistItem) => i.completed).length;
   const totalItems = checklist.length;
@@ -911,7 +911,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, stations, onUpdate, on
       </div>
 
       <div className="mb-6">
-        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">{station?.name || 'Posto não definido'}</p>
+        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">{empresa?.name || 'Empresa não definida'}</p>
         <h4 className="text-lg font-black text-white leading-tight">{task.name}</h4>
       </div>
 
@@ -1022,7 +1022,7 @@ export const TaskDetailModal = ({
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="text-[10px] font-black bg-indigo-500 text-white px-2 py-1 rounded-lg uppercase tracking-widest">
-                {task.station_name}
+                {task.empresa_name}
               </span>
               <PriorityBadge priority={task.priority} />
             </div>

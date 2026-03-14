@@ -42,13 +42,12 @@ import {
   DashboardView, 
   KanbanView, 
   CalendarView, 
-  StationsView, 
+  EmpresasView, 
   TaskDetailModal, 
   MyTasksView, 
   SettingsView 
 } from './components/Views';
-import { User, Station, Task, DashboardStats, Status, Priority, ChecklistItem, Frequency } from './types';
-import Postos from "./components/Postos";
+import { User, Empresa, Task, DashboardStats, Status, Priority, ChecklistItem, Frequency } from './types';
 
 // --- App Component ---
 
@@ -62,8 +61,8 @@ import Postos from "./components/Postos";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'kanban' | 'calendar' | 'stations' | 'settings' | 'my-tasks' | 'report'>('dashboard');
-  const [stations, setStations] = useState<Station[]>([]);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'kanban' | 'calendar' | 'empresas' | 'settings' | 'my-tasks' | 'report'>('dashboard');
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +82,7 @@ export default function App() {
     setIsAuthReady(true);
   }, []);
 
-  const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [stats, setStats] = useState<DashboardStats>({ total: 0, concluded: 0, in_progress: 0, pending: 0, delayed: 0 });
@@ -94,7 +93,7 @@ export default function App() {
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [newTemplate, setNewTemplate] = useState({
-    station_id: '',
+    empresa_id: '',
     name: '',
     description: '',
     responsible: currentUser?.name || '',
@@ -107,7 +106,7 @@ export default function App() {
   const [newItemText, setNewItemText] = useState('');
 
   // Filters
-  const [filterStation, setFilterStation] = useState<string>('');
+  const [filterEmpresa, setFilterEmpresa] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterResponsible, setFilterResponsible] = useState<string>('');
 
@@ -130,24 +129,24 @@ export default function App() {
     }
 
     try {
-      // Fetch Stations
-      let stationsQuery = supabase.from('stations').select('*');
-      const { data: allStations, error: stationsError } = await stationsQuery;
-      if (stationsError) throw stationsError;
+      // Fetch Empresas
+      let empresasQuery = supabase.from('empresas').select('*');
+      const { data: allEmpresas, error: empresasError } = await empresasQuery;
+      if (empresasError) throw empresasError;
 
-      let filteredStations = allStations || [];
+      let filteredEmpresas = allEmpresas || [];
       if (currentUser.role === 'USER') {
-        // For users, we might want to only show stations where they have tasks
-        // Fetch tasks for this user to see which stations they are assigned to
+        // For users, we might want to only show empresas where they have tasks
+        // Fetch tasks for this user to see which empresas they are assigned to
         const { data: userTasks } = await supabase
           .from('tasks')
-          .select('station_id')
+          .select('empresa_id')
           .eq('user_id', currentUser.id);
         
-        const assignedStationIds = new Set(userTasks?.map(t => t.station_id) || []);
-        filteredStations = filteredStations.filter(s => assignedStationIds.has(s.id));
+        const assignedEmpresaIds = new Set(userTasks?.map(t => t.empresa_id) || []);
+        filteredEmpresas = filteredEmpresas.filter(s => assignedEmpresaIds.has(s.id));
       }
-      setStations(filteredStations);
+      setEmpresas(filteredEmpresas);
 
       // Fetch Templates
       let templatesQuery = supabase.from('task_templates').select('*');
@@ -159,14 +158,14 @@ export default function App() {
       setTemplates(templatesData || []);
 
       // Fetch Tasks
-      let tasksQuery = supabase.from('tasks').select('*, stations(name), profiles:user_id(name)');
+      let tasksQuery = supabase.from('tasks').select('*, empresas(name), profiles:user_id(name)');
       
       if (currentUser.role === 'USER') {
         tasksQuery = tasksQuery.eq('user_id', currentUser.id);
       }
       
-      if (selectedStationId) {
-        tasksQuery = tasksQuery.eq('station_id', selectedStationId);
+      if (selectedEmpresaId) {
+        tasksQuery = tasksQuery.eq('empresa_id', selectedEmpresaId);
       }
 
       // Month/Year filtering
@@ -179,7 +178,7 @@ export default function App() {
       
       const formattedTasks = (tasksData || []).map(t => ({
         ...t,
-        station_name: t.stations?.name,
+        empresa_name: t.empresas?.name,
         user_name: t.profiles?.name
       }));
       setTasks(formattedTasks);
@@ -198,10 +197,10 @@ export default function App() {
       setDelayedTasks(formattedTasks.filter(t => t.status === 'ATRASADA'));
 
       // Progress Data
-      const progress = (allStations || []).map(s => {
-        const stationTasks = formattedTasks.filter(t => t.station_id === s.id);
-        const total = stationTasks.length;
-        const concluded = stationTasks.filter(t => t.status === 'CONCLUIDA').length;
+      const progress = (allEmpresas || []).map(s => {
+        const empresaTasks = formattedTasks.filter(t => t.empresa_id === s.id);
+        const total = empresaTasks.length;
+        const concluded = empresaTasks.filter(t => t.status === 'CONCLUIDA').length;
         return {
           name: s.name,
           total,
@@ -212,8 +211,8 @@ export default function App() {
       setProgressData(progress);
 
       // Delayed Ranking
-      const ranking = (allStations || []).map(s => {
-        const delayedCount = formattedTasks.filter(t => t.station_id === s.id && t.status === 'ATRASADA').length;
+      const ranking = (allEmpresas || []).map(s => {
+        const delayedCount = formattedTasks.filter(t => t.empresa_id === s.id && t.status === 'ATRASADA').length;
         return {
           id: s.id,
           name: s.name,
@@ -229,21 +228,21 @@ export default function App() {
     }
   };
 
-  const handleDeleteStation = async (id: number) => {
+  const handleDeleteEmpresa = async (id: number) => {
     if (currentUser?.role !== 'ADMIN') {
-      alert('Apenas administradores podem excluir postos.');
+      alert('Apenas administradores podem excluir empresas.');
       return;
     }
-    if (!confirm('Tem certeza que deseja excluir este posto? Todas as tarefas e programações associadas serão excluídas.')) return;
+    if (!confirm('Tem certeza que deseja excluir esta empresa? Todas as tarefas e programações associadas serão excluídas.')) return;
     
     try {
-      const { error } = await supabase.from('stations').delete().eq('id', id);
+      const { error } = await supabase.from('empresas').delete().eq('id', id);
       if (error) throw error;
       fetchData();
-      alert('Posto excluído com sucesso!');
+      alert('Empresa excluída com sucesso!');
     } catch (error) {
-      console.error('Error deleting station:', error);
-      alert('Erro ao excluir posto');
+      console.error('Error deleting empresa:', error);
+      alert('Erro ao excluir empresa');
     }
   };
 
@@ -266,7 +265,7 @@ export default function App() {
   };
 
   const handleAddTemplate = async () => {
-    if (!newTemplate.name || !newTemplate.station_id) {
+    if (!newTemplate.name || !newTemplate.empresa_id) {
       alert('Preencha os campos obrigatórios');
       return;
     }
@@ -289,7 +288,7 @@ export default function App() {
 
       alert(editingTemplate ? 'Tarefa atualizada com sucesso!' : 'Tarefa programada com sucesso!');
       setNewTemplate({
-        station_id: '',
+        empresa_id: '',
         name: '',
         description: '',
         responsible: currentUser?.name || '',
@@ -310,7 +309,7 @@ export default function App() {
   const handleEditTemplate = (template: any) => {
     setEditingTemplate(template);
     setNewTemplate({
-      station_id: template.station_id.toString(),
+      empresa_id: template.empresa_id.toString(),
       name: template.name,
       description: template.description,
       responsible: template.responsible,
@@ -346,24 +345,24 @@ export default function App() {
       alert('Apenas administradores podem excluir todas as tarefas.');
       return;
     }
-    if (!confirm('Tem certeza que deseja excluir TODAS as tarefas deste posto? Esta ação não pode ser desfeita.')) return;
+    if (!confirm('Tem certeza que deseja excluir TODAS as tarefas desta empresa? Esta ação não pode ser desfeita.')) return;
     try {
-      const { error } = await supabase.from('tasks').delete().eq('station_id', id);
+      const { error } = await supabase.from('tasks').delete().eq('empresa_id', id);
       if (error) throw error;
       await fetchData();
-      alert('Todas as tarefas do posto foram excluídas.');
+      alert('Todas as tarefas da empresa foram excluídas.');
     } catch (error) {
       console.error('Error deleting all tasks:', error);
-      alert('Erro ao excluir tarefas do posto');
+      alert('Erro ao excluir tarefas da empresa');
     }
   };
 
   useEffect(() => {
     if (!currentUser) return;
 
-    const stationsSubscription = supabase
-      .channel('public:stations')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, () => fetchData())
+    const empresasSubscription = supabase
+      .channel('public:empresas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'empresas' }, () => fetchData())
       .subscribe();
 
     const tasksSubscription = supabase
@@ -377,7 +376,7 @@ export default function App() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(stationsSubscription);
+      supabase.removeChannel(empresasSubscription);
       supabase.removeChannel(tasksSubscription);
       supabase.removeChannel(templatesSubscription);
     };
@@ -385,7 +384,7 @@ export default function App() {
 
   useEffect(() => {
     fetchData();
-  }, [currentUser, selectedStationId, selectedMonth, selectedYear, filterStation, filterStatus, filterResponsible]);
+  }, [currentUser, selectedEmpresaId, selectedMonth, selectedYear, filterEmpresa, filterStatus, filterResponsible]);
 
   const updateTaskStatus = async (taskId: number, newStatus: Status) => {
     try {
@@ -490,9 +489,8 @@ export default function App() {
               { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
               { id: 'kanban', icon: Trello, label: 'Quadro Kanban' },
               { id: 'calendar', icon: Calendar, label: 'Calendário' },
-              { id: 'stations', icon: Fuel, label: 'Postos' },
+              { id: 'empresas', icon: Fuel, label: 'Empresas' },
               { id: 'report', icon: FileText, label: 'Relatório Mensal' },
-              { id: 'postos-novo', icon: Plus, label: 'Postos (Novo)' },
               { id: 'settings', icon: Settings, label: 'Planejamento' },
             ].map(item => (
               <button 
@@ -539,10 +537,9 @@ export default function App() {
               {activeTab === 'dashboard' ? 'Visão Geral' : 
                activeTab === 'kanban' ? 'Quadro de Tarefas' : 
                activeTab === 'calendar' ? 'Planejamento Mensal' : 
-               activeTab === 'stations' ? 'Postos de Trabalho' : 
+               activeTab === 'empresas' ? 'Empresas' : 
                activeTab === 'report' ? 'Relatório Mensal' :
-               activeTab === 'postos-novo' ? 'Cadastro de Postos' :
-               activeTab === 'my-tasks' ? 'Minhas Tarefas' : 'Configurações'}
+               activeTab === 'my-tasks' ? 'Minhas Tarefas' : 'Planejamento'}
             </h2>
             <div className="hidden md:flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/5">
               <Search className="w-4 h-4 text-slate-500" />
@@ -583,7 +580,7 @@ export default function App() {
               {activeTab === 'my-tasks' && (
                 <MyTasksView 
                   tasks={tasks}
-                  stations={stations}
+                  empresas={empresas}
                   onUpdate={updateTaskStatus}
                   onViewTask={setViewingTask}
                 />
@@ -595,17 +592,17 @@ export default function App() {
                   progressData={progressData}
                   delayedTasks={delayedTasks}
                   delayedRanking={delayedRanking}
-                  setSelectedStationId={setSelectedStationId}
+                  setSelectedEmpresaId={setSelectedEmpresaId}
                   setActiveTab={setActiveTab}
                   setViewingTask={setViewingTask}
                   fetchData={fetchData}
-                  filterStation={filterStation}
-                  setFilterStation={setFilterStation}
+                  filterEmpresa={filterEmpresa}
+                  setFilterEmpresa={setFilterEmpresa}
                   selectedMonth={selectedMonth}
                   setSelectedMonth={setSelectedMonth}
                   filterStatus={filterStatus}
                   setFilterStatus={setFilterStatus}
-                  stations={stations}
+                  empresas={empresas}
                 />
               )}
               {activeTab === 'kanban' && (
@@ -621,9 +618,9 @@ export default function App() {
                   setViewingTask={setViewingTask}
                 />
               )}
-              {activeTab === 'stations' && (
-                <StationsView 
-                  stations={stations}
+              {activeTab === 'empresas' && (
+                <EmpresasView 
+                  empresas={empresas}
                   tasks={tasks}
                   progressData={progressData}
                   setViewingTask={setViewingTask}
@@ -632,20 +629,15 @@ export default function App() {
               {activeTab === 'report' && (
                 <MonthlyReportView 
                   currentUser={currentUser}
-                  stations={stations}
+                  empresas={empresas}
                 />
-              )}
-              {activeTab === 'postos-novo' && (
-                <div className="bg-white/5 p-8 rounded-3xl border border-white/5">
-                  <Postos />
-                </div>
               )}
               {activeTab === 'settings' && (
                 <SettingsView 
-                  stations={stations}
+                  empresas={empresas}
                   templates={templates}
                   fetchData={fetchData}
-                  handleDeleteStation={handleDeleteStation}
+                  handleDeleteEmpresa={handleDeleteEmpresa}
                   handleDeleteTemplate={handleDeleteTemplate}
                   handleDeleteAllTasks={handleDeleteAllTasks}
                   handleEditTemplate={handleEditTemplate}
