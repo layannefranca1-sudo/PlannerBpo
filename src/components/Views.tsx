@@ -11,7 +11,6 @@ import {
   MapPin,
   Calendar as CalendarIcon,
   User as UserIcon,
-  Users,
   Fuel,
   ClipboardList,
   ChevronLeft,
@@ -557,78 +556,6 @@ export const SettingsView = ({
   currentUser: User
 }) => {
   const [newStation, setNewStation] = useState('');
-  const [users, setUsers] = useState<User[]>([]);
-  const [newUser, setNewUser] = useState({ name: '', email: '', user_code: '', password: '', role: 'USER' as 'ADMIN' | 'USER' });
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      if (currentUser.role === 'ADMIN') {
-        const { data, error } = await supabase.from('profiles').select('*');
-        if (!error && data) setUsers(data);
-      }
-    };
-    fetchUsers();
-  }, [currentUser]);
-
-  const handleCreateUser = async () => {
-    if (!newUser.name || !newUser.password || (!newUser.email && !newUser.user_code)) {
-      alert('Preencha os campos obrigatórios');
-      return;
-    }
-    
-    try {
-      const email = newUser.email || `${newUser.user_code.toLowerCase()}@planner.com`;
-      
-      const response = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password: newUser.password,
-          name: newUser.name,
-          role: newUser.role,
-          user_code: newUser.user_code
-        })
-      }).catch(err => {
-        throw new Error('Não foi possível conectar ao servidor local. Verifique se o servidor está rodando.');
-      });
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Erro ao criar usuário');
-
-      alert('Usuário criado com sucesso!');
-      setNewUser({ name: '', email: '', user_code: '', password: '', role: 'USER' });
-      const { data: usersData } = await supabase.from('profiles').select('*');
-      if (usersData) setUsers(usersData);
-    } catch (err: any) {
-      alert(err.message || 'Erro ao criar usuário');
-    }
-  };
-
-  const handleDeleteUser = async (id: string) => {
-    if (currentUser?.role !== 'ADMIN') {
-      alert('Apenas administradores podem excluir usuários.');
-      return;
-    }
-    if (!confirm('Excluir este usuário?')) return;
-    try {
-      const response = await fetch(`/api/admin/users/${id}`, {
-        method: 'DELETE'
-      }).catch(err => {
-        throw new Error('Não foi possível conectar ao servidor local. Verifique se o servidor está rodando.');
-      });
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Erro ao excluir usuário');
-
-      const { data: usersData } = await supabase.from('profiles').select('*');
-      if (usersData) setUsers(usersData);
-      alert('Usuário excluído com sucesso!');
-    } catch (error: any) {
-      console.error('Error deleting user:', error);
-      alert(error.message || 'Erro de conexão ao excluir usuário');
-    }
-  };
 
   const handleAddStation = async () => {
     if (currentUser.role !== 'ADMIN') {
@@ -868,110 +795,6 @@ export const SettingsView = ({
           </div>
         </div>
       </div>
-
-      {/* User Management (Admin Only) */}
-      {currentUser.role === 'ADMIN' && (
-        <div className="glass-card p-8 rounded-[2rem]">
-          <h3 className="text-xl font-bold mb-8 flex items-center gap-3">
-            <Users className="w-6 h-6 text-[#6366f1]" />
-            Gerenciamento de Usuários
-          </h3>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Nome</label>
-                <input 
-                  type="text" 
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none focus:border-indigo-500 transition-all"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tipo</label>
-                <select 
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({...newUser, role: e.target.value as 'ADMIN' | 'USER'})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none focus:border-indigo-500 transition-all"
-                >
-                  <option value="USER">Usuário Comum</option>
-                  <option value="ADMIN">Admin Geral</option>
-                </select>
-              </div>
-              {newUser.role === 'ADMIN' ? (
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">E-mail</label>
-                  <input 
-                    type="email" 
-                    value={newUser.email}
-                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none focus:border-indigo-500 transition-all"
-                  />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Código de Usuário</label>
-                  <input 
-                    type="text" 
-                    value={newUser.user_code}
-                    onChange={(e) => setNewUser({...newUser, user_code: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none focus:border-indigo-500 transition-all"
-                  />
-                </div>
-              )}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Senha</label>
-                <input 
-                  type="password" 
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none focus:border-indigo-500 transition-all"
-                />
-              </div>
-              <button 
-                onClick={handleCreateUser}
-                className="w-full bg-[#6366f1] hover:bg-indigo-500 text-white py-4 rounded-2xl font-bold transition-all"
-              >
-                Criar Usuário
-              </button>
-            </div>
-
-            <div className="lg:col-span-2 overflow-hidden border border-white/5 rounded-2xl">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-white/5 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    <th className="px-6 py-4">Nome</th>
-                    <th className="px-6 py-4">Identificação</th>
-                    <th className="px-6 py-4">Tipo</th>
-                    <th className="px-6 py-4 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {users.map(u => (
-                    <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-6 py-4 font-bold text-slate-200">{u.name}</td>
-                      <td className="px-6 py-4 text-xs text-slate-400">{u.email || u.user_code}</td>
-                      <td className="px-6 py-4">
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${u.role === 'ADMIN' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={() => handleDeleteUser(u.id)}
-                          className="p-2 text-slate-500 hover:text-rose-500 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Templates List */}
       <div className="space-y-8">

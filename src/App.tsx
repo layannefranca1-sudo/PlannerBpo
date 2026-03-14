@@ -48,6 +48,7 @@ import {
   SettingsView 
 } from './components/Views';
 import { User, Station, Task, DashboardStats, Status, Priority, ChecklistItem, Frequency } from './types';
+import Postos from "./components/Postos";
 
 // --- App Component ---
 
@@ -69,24 +70,17 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const user = {
-          id: session.user.id,
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0],
-          email: session.user.email,
-          role: session.user.user_metadata?.role || 'USER',
-          user_code: session.user.user_metadata?.user_code || ''
-        };
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
         setCurrentUser(user);
-        setActiveTab(prev => (prev === 'dashboard' && user.role === 'USER') ? 'my-tasks' : prev);
-      } else {
-        setCurrentUser(null);
+        setActiveTab(user.role === 'ADMIN' ? 'dashboard' : 'my-tasks');
+      } catch (e) {
+        console.error('Error parsing saved user', e);
       }
-      setIsAuthReady(true);
-    });
-
-    return () => subscription.unsubscribe();
+    }
+    setIsAuthReady(true);
   }, []);
 
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
@@ -119,11 +113,12 @@ export default function App() {
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
+    localStorage.setItem('currentUser', JSON.stringify(user));
     setActiveTab(user.role === 'ADMIN' ? 'dashboard' : 'my-tasks');
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    localStorage.removeItem('currentUser');
     setCurrentUser(null);
     setActiveTab('dashboard');
   };
@@ -136,11 +131,23 @@ export default function App() {
 
     try {
       // Fetch Stations
-      const { data: stationsData, error: stationsError } = await supabase
-        .from('stations')
-        .select('*');
+      let stationsQuery = supabase.from('stations').select('*');
+      const { data: allStations, error: stationsError } = await stationsQuery;
       if (stationsError) throw stationsError;
-      setStations(stationsData || []);
+
+      let filteredStations = allStations || [];
+      if (currentUser.role === 'USER') {
+        // For users, we might want to only show stations where they have tasks
+        // Fetch tasks for this user to see which stations they are assigned to
+        const { data: userTasks } = await supabase
+          .from('tasks')
+          .select('station_id')
+          .eq('user_id', currentUser.id);
+        
+        const assignedStationIds = new Set(userTasks?.map(t => t.station_id) || []);
+        filteredStations = filteredStations.filter(s => assignedStationIds.has(s.id));
+      }
+      setStations(filteredStations);
 
       // Fetch Templates
       let templatesQuery = supabase.from('task_templates').select('*');
@@ -191,7 +198,7 @@ export default function App() {
       setDelayedTasks(formattedTasks.filter(t => t.status === 'ATRASADA'));
 
       // Progress Data
-      const progress = (stationsData || []).map(s => {
+      const progress = (allStations || []).map(s => {
         const stationTasks = formattedTasks.filter(t => t.station_id === s.id);
         const total = stationTasks.length;
         const concluded = stationTasks.filter(t => t.status === 'CONCLUIDA').length;
@@ -205,7 +212,7 @@ export default function App() {
       setProgressData(progress);
 
       // Delayed Ranking
-      const ranking = (stationsData || []).map(s => {
+      const ranking = (allStations || []).map(s => {
         const delayedCount = formattedTasks.filter(t => t.station_id === s.id && t.status === 'ATRASADA').length;
         return {
           id: s.id,
@@ -485,6 +492,7 @@ export default function App() {
               { id: 'calendar', icon: Calendar, label: 'Calendário' },
               { id: 'stations', icon: Fuel, label: 'Postos' },
               { id: 'report', icon: FileText, label: 'Relatório Mensal' },
+              { id: 'postos-novo', icon: Plus, label: 'Postos (Novo)' },
               { id: 'settings', icon: Settings, label: 'Planejamento' },
             ].map(item => (
               <button 
@@ -533,6 +541,7 @@ export default function App() {
                activeTab === 'calendar' ? 'Planejamento Mensal' : 
                activeTab === 'stations' ? 'Postos de Trabalho' : 
                activeTab === 'report' ? 'Relatório Mensal' :
+               activeTab === 'postos-novo' ? 'Cadastro de Postos' :
                activeTab === 'my-tasks' ? 'Minhas Tarefas' : 'Configurações'}
             </h2>
             <div className="hidden md:flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/5">
@@ -626,6 +635,11 @@ export default function App() {
                   stations={stations}
                 />
               )}
+              {activeTab === 'postos-novo' && (
+                <div className="bg-white/5 p-8 rounded-3xl border border-white/5">
+                  <Postos />
+                </div>
+              )}
               {activeTab === 'settings' && (
                 <SettingsView 
                   stations={stations}
@@ -678,3 +692,4 @@ export default function App() {
     </div>
   );
 }
+

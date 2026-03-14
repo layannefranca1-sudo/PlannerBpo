@@ -1,16 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-const getEnv = (key: string, fallback: string) => {
-  const value = import.meta.env[key];
-  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
-  return fallback;
-};
+// URL do seu projeto Supabase
+const supabaseUrl = "https://qjwfnzahicjxhbwywyni.supabase.co";
 
-const supabaseUrl = getEnv('VITE_SUPABASE_URL', 'https://odajthnbbzvntvojmmkt.supabase.co');
-const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY', '');
+// Chave anônima (para frontend)
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqd2ZuemFoaWNqeGhid3l3eW5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MDkwMTUsImV4cCI6MjA4OTA4NTAxNX0.6MimWvSro51JBY-AX8a_0ZGHILjunqwtG5W5Ammjnjw";
 
-if (!supabaseKey || !supabaseKey.startsWith('eyJ')) {
-  console.warn('AVISO: A VITE_SUPABASE_ANON_KEY não foi configurada ou parece inválida. Certifique-se de usar a "anon public key" do Supabase (que começa com "eyJ").');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseKey || 'placeholder-key');
+// Cria o cliente Supabase
+export const supabase = createClient(supabaseUrl, supabaseKey);
