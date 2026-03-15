@@ -473,7 +473,7 @@ export const EmpresasView = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
       {empresas.map((empresa: any) => {
-        const empresaTasks = tasks.filter((t: any) => t.empresa_id === empresa.id);
+        const empresaTasks = tasks.filter((t: any) => t.id_empresa === empresa.id);
         const empresaProgress = progressData.find((p: any) => p.id === empresa.id)?.progress || 0;
         
         return (
@@ -484,7 +484,7 @@ export const EmpresasView = ({
                   <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                     <MapPin className="w-6 h-6 text-indigo-400" />
                   </div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight">{empresa.name}</h3>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">{empresa.nome}</h3>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Conclusão</p>
@@ -537,7 +537,8 @@ export const SettingsView = ({
   newItemText,
   setNewItemText,
   handleAddTemplate,
-  currentUser
+  currentUser,
+  showNotification
 }: { 
   empresas: Empresa[], 
   templates: any[], 
@@ -553,28 +554,29 @@ export const SettingsView = ({
   newItemText: string,
   setNewItemText: (text: string) => void,
   handleAddTemplate: () => Promise<void>,
-  currentUser: User
+  currentUser: User,
+  showNotification: (message: string, type?: 'success' | 'error' | 'info') => void
 }) => {
   const [newEmpresa, setNewEmpresa] = useState('');
 
   const handleAddEmpresa = async () => {
     if (currentUser.role !== 'ADMIN') {
-      alert('Apenas administradores podem cadastrar empresas.');
+      showNotification('Apenas administradores podem cadastrar empresas.', 'error');
       return;
     }
     if (!newEmpresa) return;
     try {
-      const { error } = await supabase.from('empresas').insert({ name: newEmpresa });
+      const { error } = await supabase.from('empresas').insert({ nome: newEmpresa });
       if (!error) {
         setNewEmpresa('');
         await fetchData();
-        alert('Empresa cadastrada com sucesso!');
+        showNotification('Empresa cadastrada com sucesso!', 'success');
       } else {
         throw error;
       }
     } catch (error: any) {
       console.error('Error adding empresa:', error);
-      alert(error.message || 'Erro de conexão ao cadastrar empresa');
+      showNotification(error.message || 'Erro de conexão ao cadastrar empresa', 'error');
     }
   };
 
@@ -614,7 +616,7 @@ export const SettingsView = ({
             <div className="divide-y divide-white/5">
               {empresas.map((s: any) => (
                 <div key={s.id} className="p-6 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
-                  <span className="font-bold text-slate-200">{s.name}</span>
+                  <span className="font-bold text-slate-200">{s.nome}</span>
                   {currentUser.role === 'ADMIN' && (
                     <div className="flex items-center gap-2">
                       <button 
@@ -654,12 +656,12 @@ export const SettingsView = ({
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Empresa *</label>
                 <select 
-                  value={newTemplate.empresa_id}
-                  onChange={(e) => setNewTemplate({...newTemplate, empresa_id: e.target.value})}
+                  value={newTemplate.id_empresa}
+                  onChange={(e) => setNewTemplate({...newTemplate, id_empresa: e.target.value})}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none focus:border-emerald-500 transition-all"
                 >
                   <option value="">Selecionar...</option>
-                  {empresas.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {empresas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
@@ -776,7 +778,7 @@ export const SettingsView = ({
                 onClick={() => {
                   setEditingTemplate(null);
                   setNewTemplate({
-                    empresa_id: '',
+                    id_empresa: '',
                     name: '',
                     description: '',
                     responsible: currentUser.name,
@@ -828,7 +830,7 @@ export const SettingsView = ({
                       <div className="text-[10px] text-slate-500 mt-1 line-clamp-1">{t.description}</div>
                     </td>
                     <td className="px-8 py-6">
-                      <span className="text-xs font-bold text-slate-400">{empresas.find((s: any) => s.id === t.empresa_id)?.name || 'N/A'}</span>
+                      <span className="text-xs font-bold text-slate-400">{empresas.find((s: any) => s.id === t.id_empresa)?.nome || 'N/A'}</span>
                     </td>
                     <td className="px-8 py-6 text-xs text-slate-400">{t.responsible}</td>
                     <td className="px-8 py-6">
@@ -889,7 +891,7 @@ interface TaskCardProps {
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, empresas, onUpdate, onViewTask }) => {
-  const empresa = empresas.find(s => s.id === task.empresa_id);
+  const empresa = empresas.find(s => s.id === task.id_empresa);
   const checklist = task.checklist || [];
   const completedItems = checklist.filter((i: ChecklistItem) => i.completed).length;
   const totalItems = checklist.length;
@@ -911,7 +913,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, empresas, onUpdate, on
       </div>
 
       <div className="mb-6">
-        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">{empresa?.name || 'Empresa não definida'}</p>
+        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">{empresa?.nome || 'Empresa não definida'}</p>
         <h4 className="text-lg font-black text-white leading-tight">{task.name}</h4>
       </div>
 
@@ -1140,6 +1142,140 @@ export const TaskDetailModal = ({
           </button>
         </div>
       </motion.div>
+    </div>
+  );
+};
+
+export const UsersView = ({ 
+  users, 
+  fetchUsers,
+  showNotification
+}: { 
+  users: any[], 
+  fetchUsers: () => Promise<void>,
+  showNotification: (message: string, type?: 'success' | 'error' | 'info') => void
+}) => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !email || !password) {
+      showNotification('Preencha todos os campos', 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao criar usuário');
+      }
+      showNotification('Usuário criado com sucesso!', 'success');
+      setName('');
+      setEmail('');
+      setPassword('');
+      await fetchUsers();
+    } catch (error: any) {
+      showNotification(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
+    try {
+      const response = await fetch(`/api/admin/users/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Erro ao excluir usuário');
+      showNotification('Usuário excluído com sucesso!', 'success');
+      await fetchUsers();
+    } catch (error: any) {
+      showNotification(error.message, 'error');
+    }
+  };
+
+  return (
+    <div className="space-y-12">
+      {/* Form Section */}
+      <div className="glass-card p-10 rounded-[3rem] border border-white/5">
+        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8">Cadastrar Novo Usuário</h3>
+        <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Nome Completo</label>
+            <input 
+              type="text" 
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white outline-none focus:border-indigo-500 transition-all"
+              placeholder="Ex: João Silva"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">E-mail</label>
+            <input 
+              type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white outline-none focus:border-indigo-500 transition-all"
+              placeholder="joao@exemplo.com"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Senha</label>
+            <input 
+              type="password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white outline-none focus:border-indigo-500 transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+          <div className="md:col-span-3 flex justify-end">
+            <button 
+              type="submit"
+              disabled={loading}
+              className="bg-[#6366f1] hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-indigo-600/20 disabled:opacity-50"
+            >
+              {loading ? 'CADASTRANDO...' : 'CADASTRAR USUÁRIO'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* List Section */}
+      <div className="glass-card p-10 rounded-[3rem] border border-white/5">
+        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8">Usuários Cadastrados</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {users.map((user) => (
+            <div key={user.id} className="bg-white/5 rounded-3xl p-6 border border-white/5 flex items-center justify-between group hover:bg-white/[0.08] transition-all">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center">
+                  <UserIcon className="w-6 h-6 text-indigo-400" />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-sm">{user.name}</h4>
+                  <p className="text-slate-500 text-xs">{user.email}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleDeleteUser(user.id)}
+                className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

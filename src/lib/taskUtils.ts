@@ -22,7 +22,7 @@ export async function generateTasksFromTemplate(template: any) {
 
     if (shouldGenerate) {
       tasksToInsert.push({
-        empresa_id: template.empresa_id,
+        id_empresa: template.id_empresa,
         template_id: template.id,
         user_id: template.user_id,
         date: dateStr,
@@ -37,14 +37,12 @@ export async function generateTasksFromTemplate(template: any) {
   }
 
   if (tasksToInsert.length > 0) {
-    // In Supabase, we can use upsert or just insert. 
-    // To avoid duplicates, we might need a unique constraint on (empresa_id, template_id, date)
     const { error } = await supabase
-      .from('tasks')
-      .upsert(tasksToInsert, { onConflict: 'empresa_id,template_id,date' });
+      .from('tarefas')
+      .insert(tasksToInsert);
     
     if (error) {
-      console.error('Error generating tasks:', error);
+      console.error('Supabase error generating tasks in tarefas table:', error);
       throw error;
     }
   }

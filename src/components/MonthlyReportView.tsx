@@ -90,7 +90,7 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
   const fetchReportData = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('tasks').select('*, empresas(name), profiles:user_id(name)');
+      let query = supabase.from('tarefas').select('*, empresas(nome), profiles:user_id(name)');
       
       // Month/Year filtering
       const startDate = new Date(selectedYear, selectedMonth - 1, 1);
@@ -100,7 +100,7 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
                    .lte('date', endDate.toISOString().split('T')[0]);
 
       if (filterEmpresa) {
-        query = query.eq('empresa_id', filterEmpresa);
+        query = query.eq('id_empresa', filterEmpresa);
       }
       
       if (filterUser) {
@@ -114,7 +114,7 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
       if (!error && data) {
         const formattedTasks = data.map(t => ({
           ...t,
-          empresa_name: t.empresas?.name,
+          empresa_name: t.empresas?.nome,
           user_name: t.profiles?.name
         }));
         setTasks(formattedTasks);
@@ -243,7 +243,7 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
                 className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all min-w-[180px]"
               >
                 <option value="">Todas as Empresas</option>
-                {empresas.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {empresas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
               </select>
             </div>
 

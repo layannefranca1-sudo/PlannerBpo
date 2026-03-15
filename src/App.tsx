@@ -45,7 +45,8 @@ import {
   EmpresasView, 
   TaskDetailModal, 
   MyTasksView, 
-  SettingsView 
+  SettingsView,
+  UsersView
 } from './components/Views';
 import { User, Empresa, Task, DashboardStats, Status, Priority, ChecklistItem, Frequency } from './types';
 
@@ -61,10 +62,11 @@ import { User, Empresa, Task, DashboardStats, Status, Priority, ChecklistItem, F
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'kanban' | 'calendar' | 'empresas' | 'settings' | 'my-tasks' | 'report'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'kanban' | 'calendar' | 'empresas' | 'settings' | 'my-tasks' | 'report' | 'users'>('dashboard');
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
@@ -93,7 +95,7 @@ export default function App() {
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [newTemplate, setNewTemplate] = useState({
-    empresa_id: '',
+    id_empresa: '',
     name: '',
     description: '',
     responsible: currentUser?.name || '',
@@ -104,6 +106,12 @@ export default function App() {
     checklist: [] as ChecklistItem[]
   });
   const [newItemText, setNewItemText] = useState('');
+
+  useEffect(() => {
+    if (currentUser && !newTemplate.responsible) {
+      setNewTemplate(prev => ({ ...prev, responsible: currentUser.name }));
+    }
+  }, [currentUser]);
 
   // Filters
   const [filterEmpresa, setFilterEmpresa] = useState<string>('');
@@ -120,6 +128,25 @@ export default function App() {
     localStorage.removeItem('currentUser');
     setCurrentUser(null);
     setActiveTab('dashboard');
+  };
+
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('/api/admin/users');
+      if (!response.ok) throw new Error('Failed to fetch users');
+      const data = await response.json();
+      setUsers(data);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
   };
 
   const fetchData = async () => {
@@ -139,11 +166,11 @@ export default function App() {
         // For users, we might want to only show empresas where they have tasks
         // Fetch tasks for this user to see which empresas they are assigned to
         const { data: userTasks } = await supabase
-          .from('tasks')
-          .select('empresa_id')
+          .from('tarefas')
+          .select('id_empresa')
           .eq('user_id', currentUser.id);
         
-        const assignedEmpresaIds = new Set(userTasks?.map(t => t.empresa_id) || []);
+        const assignedEmpresaIds = new Set(userTasks?.map(t => t.id_empresa) || []);
         filteredEmpresas = filteredEmpresas.filter(s => assignedEmpresaIds.has(s.id));
       }
       setEmpresas(filteredEmpresas);
@@ -158,14 +185,14 @@ export default function App() {
       setTemplates(templatesData || []);
 
       // Fetch Tasks
-      let tasksQuery = supabase.from('tasks').select('*, empresas(name), profiles:user_id(name)');
+      let tasksQuery = supabase.from('tarefas').select('*, empresas(nome), profiles:user_id(name)');
       
       if (currentUser.role === 'USER') {
         tasksQuery = tasksQuery.eq('user_id', currentUser.id);
       }
       
       if (selectedEmpresaId) {
-        tasksQuery = tasksQuery.eq('empresa_id', selectedEmpresaId);
+        tasksQuery = tasksQuery.eq('id_empresa', selectedEmpresaId);
       }
 
       // Month/Year filtering
@@ -178,7 +205,7 @@ export default function App() {
       
       const formattedTasks = (tasksData || []).map(t => ({
         ...t,
-        empresa_name: t.empresas?.name,
+        empresa_name: t.empresas?.nome,
         user_name: t.profiles?.name
       }));
       setTasks(formattedTasks);
@@ -198,11 +225,11 @@ export default function App() {
 
       // Progress Data
       const progress = (allEmpresas || []).map(s => {
-        const empresaTasks = formattedTasks.filter(t => t.empresa_id === s.id);
+        const empresaTasks = formattedTasks.filter(t => t.id_empresa === s.id);
         const total = empresaTasks.length;
         const concluded = empresaTasks.filter(t => t.status === 'CONCLUIDA').length;
         return {
-          name: s.name,
+          name: s.nome,
           total,
           concluded,
           percentage: total > 0 ? Math.round((concluded / total) * 100) : 0
@@ -212,15 +239,18 @@ export default function App() {
 
       // Delayed Ranking
       const ranking = (allEmpresas || []).map(s => {
-        const delayedCount = formattedTasks.filter(t => t.empresa_id === s.id && t.status === 'ATRASADA').length;
+        const delayedCount = formattedTasks.filter(t => t.id_empresa === s.id && t.status === 'ATRASADA').length;
         return {
           id: s.id,
-          name: s.name,
+          name: s.nome,
           delayedCount
         };
       }).sort((a, b) => b.delayedCount - a.delayedCount);
       setDelayedRanking(ranking);
 
+      if (currentUser.role === 'ADMIN') {
+        fetchUsers();
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -229,66 +259,100 @@ export default function App() {
   };
 
   const handleDeleteEmpresa = async (id: number) => {
+    console.log('handleDeleteEmpresa initiated for id:', id);
     if (currentUser?.role !== 'ADMIN') {
-      alert('Apenas administradores podem excluir empresas.');
+      console.warn('Delete attempt by non-admin user');
+      showNotification('Apenas administradores podem excluir empresas.', 'error');
       return;
     }
-    if (!confirm('Tem certeza que deseja excluir esta empresa? Todas as tarefas e programações associadas serão excluídas.')) return;
     
-    try {
-      const { error } = await supabase.from('empresas').delete().eq('id', id);
-      if (error) throw error;
-      fetchData();
-      alert('Empresa excluída com sucesso!');
-    } catch (error) {
-      console.error('Error deleting empresa:', error);
-      alert('Erro ao excluir empresa');
-    }
+    setConfirmDialog({
+      message: 'Tem certeza que deseja excluir esta empresa? Todas as tarefas e programações associadas serão excluídas.',
+      onConfirm: async () => {
+        try {
+          console.log('Executing Supabase delete for empresa id:', id);
+          const { error } = await supabase.from('empresas').delete().eq('id', id);
+          if (error) {
+            console.error('Supabase error deleting empresa:', error);
+            throw error;
+          }
+          console.log('Empresa deleted successfully, fetching data...');
+          await fetchData();
+          showNotification('Empresa excluída com sucesso!', 'success');
+        } catch (error: any) {
+          console.error('Error deleting empresa:', error);
+          showNotification(`Erro ao excluir empresa: ${error.message || 'Erro desconhecido'}`, 'error');
+        }
+        setConfirmDialog(null);
+      }
+    });
   };
 
   const handleDeleteTemplate = async (id: number) => {
     if (currentUser?.role !== 'ADMIN') {
-      alert('Apenas administradores podem excluir programações.');
+      showNotification('Apenas administradores podem excluir programações.', 'error');
       return;
     }
-    if (!confirm('Tem certeza que deseja excluir esta programação? Todas as tarefas geradas por ela serão excluídas.')) return;
     
-    try {
-      const { error } = await supabase.from('task_templates').delete().eq('id', id);
-      if (error) throw error;
-      fetchData();
-      alert('Programação excluída com sucesso!');
-    } catch (error) {
-      console.error('Error deleting template:', error);
-      alert('Erro ao excluir programação');
-    }
+    setConfirmDialog({
+      message: 'Tem certeza que deseja excluir esta programação? Todas as tarefas geradas por ela serão excluídas.',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('task_templates').delete().eq('id', id);
+          if (error) {
+            console.error('Supabase error deleting template:', error);
+            throw error;
+          }
+          await fetchData();
+          showNotification('Programação excluída com sucesso!', 'success');
+        } catch (error: any) {
+          console.error('Error deleting template:', error);
+          showNotification(`Erro ao excluir programação: ${error.message || 'Erro desconhecido'}`, 'error');
+        }
+        setConfirmDialog(null);
+      }
+    });
   };
 
   const handleAddTemplate = async () => {
-    if (!newTemplate.name || !newTemplate.empresa_id) {
-      alert('Preencha os campos obrigatórios');
+    console.log('handleAddTemplate initiated with newTemplate:', newTemplate);
+    if (!newTemplate.name || !newTemplate.id_empresa || !newTemplate.responsible || !newTemplate.start_date || !newTemplate.end_date) {
+      console.warn('Validation failed for newTemplate:', newTemplate);
+      showNotification('Preencha todos os campos obrigatórios (*)', 'error');
       return;
     }
     
     try {
-      const templateData = { ...newTemplate, user_id: currentUser?.id };
+      const templateData = { 
+        ...newTemplate, 
+        id_empresa: Number(newTemplate.id_empresa),
+        user_id: currentUser?.id 
+      };
+      console.log('Saving template data:', templateData);
       let result;
       
       if (editingTemplate) {
+        console.log('Updating existing template id:', editingTemplate.id);
         result = await supabase.from('task_templates').update(templateData).eq('id', editingTemplate.id).select().single();
       } else {
+        console.log('Inserting new template');
         result = await supabase.from('task_templates').insert(templateData).select().single();
       }
 
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('Supabase error saving template:', result.error);
+        throw result.error;
+      }
 
+      console.log('Template saved successfully:', result.data);
       if (result.data) {
+        console.log('Generating tasks from template...');
         await generateTasksFromTemplate(result.data);
       }
 
-      alert(editingTemplate ? 'Tarefa atualizada com sucesso!' : 'Tarefa programada com sucesso!');
+      showNotification(editingTemplate ? 'Tarefa atualizada com sucesso!' : 'Tarefa programada com sucesso!', 'success');
       setNewTemplate({
-        empresa_id: '',
+        id_empresa: '',
         name: '',
         description: '',
         responsible: currentUser?.name || '',
@@ -299,17 +363,18 @@ export default function App() {
         checklist: []
       });
       setEditingTemplate(null);
-      fetchData();
-    } catch (error) {
+      console.log('Fetching updated data...');
+      await fetchData();
+    } catch (error: any) {
       console.error('Error saving template:', error);
-      alert('Erro ao salvar programação');
+      showNotification(`Erro ao salvar programação: ${error.message || 'Erro desconhecido'}`, 'error');
     }
   };
 
   const handleEditTemplate = (template: any) => {
     setEditingTemplate(template);
     setNewTemplate({
-      empresa_id: template.empresa_id.toString(),
+      id_empresa: template.id_empresa.toString(),
       name: template.name,
       description: template.description,
       responsible: template.responsible,
@@ -325,36 +390,51 @@ export default function App() {
 
   const handleDeleteTask = async (id: number) => {
     if (currentUser?.role !== 'ADMIN') {
-      alert('Apenas administradores podem excluir tarefas.');
+      showNotification('Apenas administradores podem excluir tarefas.', 'error');
       return;
     }
-    if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
-    try {
-      const { error } = await supabase.from('tasks').delete().eq('id', id);
-      if (error) throw error;
-      await fetchData();
-      alert('Tarefa excluída com sucesso!');
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      alert('Erro ao excluir tarefa');
-    }
+    
+    setConfirmDialog({
+      message: 'Tem certeza que deseja excluir esta tarefa?',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('tarefas').delete().eq('id', id);
+          if (error) throw error;
+          await fetchData();
+          showNotification('Tarefa excluída com sucesso!', 'success');
+        } catch (error: any) {
+          console.error('Error deleting task:', error);
+          showNotification(`Erro ao excluir tarefa: ${error.message || 'Erro desconhecido'}`, 'error');
+        }
+        setConfirmDialog(null);
+      }
+    });
   };
 
   const handleDeleteAllTasks = async (id: number) => {
     if (currentUser?.role !== 'ADMIN') {
-      alert('Apenas administradores podem excluir todas as tarefas.');
+      showNotification('Apenas administradores podem excluir todas as tarefas.', 'error');
       return;
     }
-    if (!confirm('Tem certeza que deseja excluir TODAS as tarefas desta empresa? Esta ação não pode ser desfeita.')) return;
-    try {
-      const { error } = await supabase.from('tasks').delete().eq('empresa_id', id);
-      if (error) throw error;
-      await fetchData();
-      alert('Todas as tarefas da empresa foram excluídas.');
-    } catch (error) {
-      console.error('Error deleting all tasks:', error);
-      alert('Erro ao excluir tarefas da empresa');
-    }
+    
+    setConfirmDialog({
+      message: 'Tem certeza que deseja excluir TODAS as tarefas desta empresa? Esta ação não pode ser desfeita.',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('tarefas').delete().eq('id_empresa', id);
+          if (error) {
+            console.error('Supabase error deleting all tasks for empresa:', error);
+            throw error;
+          }
+          await fetchData();
+          showNotification('Todas as tarefas da empresa foram excluídas.', 'success');
+        } catch (error: any) {
+          console.error('Error deleting all tasks:', error);
+          showNotification(`Erro ao excluir tarefas da empresa: ${error.message || 'Erro desconhecido'}`, 'error');
+        }
+        setConfirmDialog(null);
+      }
+    });
   };
 
   useEffect(() => {
@@ -366,8 +446,8 @@ export default function App() {
       .subscribe();
 
     const tasksSubscription = supabase
-      .channel('public:tasks')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => fetchData())
+      .channel('public:tarefas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tarefas' }, () => fetchData())
       .subscribe();
 
     const templatesSubscription = supabase
@@ -391,13 +471,13 @@ export default function App() {
       if (newStatus === 'CONCLUIDA') {
         const task = tasks.find(t => t.id === taskId);
         if (task && task.checklist.length > 0 && !task.checklist.every(item => item.completed)) {
-          alert("Conclua todos os itens do checklist primeiro.");
+          showNotification("Conclua todos os itens do checklist primeiro.", "info");
           return;
         }
       }
 
       const { error } = await supabase
-        .from('tasks')
+        .from('tarefas')
         .update({ status: newStatus })
         .eq('id', taskId);
       
@@ -414,7 +494,7 @@ export default function App() {
     );
     try {
       const { error } = await supabase
-        .from('tasks')
+        .from('tarefas')
         .update({ checklist: updatedChecklist })
         .eq('id', task.id);
       
@@ -431,7 +511,7 @@ export default function App() {
   const updateChecklist = async (task: Task, checklist: ChecklistItem[]) => {
     try {
       const { error } = await supabase
-        .from('tasks')
+        .from('tarefas')
         .update({ checklist })
         .eq('id', task.id);
       
@@ -471,6 +551,62 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-slate-200 flex font-sans overflow-hidden">
+      {/* Custom Notification */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div 
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 20 }}
+            exit={{ opacity: 0, y: -50 }}
+            className={`fixed top-0 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border ${
+              notification.type === 'success' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 
+              notification.type === 'error' ? 'bg-rose-500/90 border-rose-400 text-white' : 
+              'bg-indigo-500/90 border-indigo-400 text-white'
+            }`}
+          >
+            {notification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            <span className="font-bold text-sm">{notification.message}</span>
+            <button onClick={() => setNotification(null)} className="ml-4 hover:opacity-70">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Confirm Dialog */}
+      <AnimatePresence>
+        {confirmDialog && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="glass-card p-8 rounded-[2.5rem] border border-white/10 max-w-md w-full shadow-2xl"
+            >
+              <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-6">
+                <AlertTriangle className="w-8 h-8 text-amber-500" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-4">Confirmar Ação</h3>
+              <p className="text-slate-400 mb-8 leading-relaxed">{confirmDialog.message}</p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setConfirmDialog(null)}
+                  className="flex-1 px-6 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all border border-white/5"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={confirmDialog.onConfirm}
+                  className="flex-1 px-6 py-4 rounded-2xl bg-rose-500 hover:bg-rose-400 text-white font-bold transition-all shadow-lg shadow-rose-600/20"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <aside className="w-80 bg-[#0a0a0a] border-r border-white/5 flex flex-col hidden lg:flex h-screen sticky top-0 z-50">
         <div className="p-10">
@@ -480,6 +616,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-white font-black text-xl leading-none tracking-tighter">Planner Bpo</h1>
+              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">RC Consultoria Financeira</p>
             </div>
           </div>
 
@@ -492,6 +629,7 @@ export default function App() {
               { id: 'empresas', icon: Fuel, label: 'Empresas' },
               { id: 'report', icon: FileText, label: 'Relatório Mensal' },
               { id: 'settings', icon: Settings, label: 'Planejamento' },
+              ...(currentUser?.role === 'ADMIN' ? [{ id: 'users', icon: Users, label: 'Usuários' }] : []),
             ].map(item => (
               <button 
                 key={item.id}
@@ -632,6 +770,13 @@ export default function App() {
                   empresas={empresas}
                 />
               )}
+              {activeTab === 'users' && currentUser?.role === 'ADMIN' && (
+                <UsersView 
+                  users={users}
+                  fetchUsers={fetchUsers}
+                  showNotification={showNotification}
+                />
+              )}
               {activeTab === 'settings' && (
                 <SettingsView 
                   empresas={empresas}
@@ -649,6 +794,7 @@ export default function App() {
                   setNewItemText={setNewItemText}
                   handleAddTemplate={handleAddTemplate}
                   currentUser={currentUser}
+                  showNotification={showNotification}
                 />
               )}
             </motion.div>

@@ -1,5 +1,5 @@
 export interface User {
-  id: number;
+  id: string | number;
   name: string;
   email?: string;
   user_code?: string;
@@ -12,7 +12,7 @@ export type Frequency = 'DIAS_UTEIS' | 'SEMANAL' | 'MENSAL';
 
 export interface Empresa {
   id: number;
-  name: string;
+  nome: string;
 }
 
 export interface ChecklistItem {
@@ -23,7 +23,7 @@ export interface ChecklistItem {
 
 export interface Task {
   id: number;
-  empresa_id: number;
+  id_empresa: number;
   template_id?: number;
   date: string;
   status: Status;
