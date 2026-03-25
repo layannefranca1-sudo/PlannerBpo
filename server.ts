@@ -47,14 +47,28 @@ async function startServer() {
   });
 
   app.post("/api/admin/users", async (req, res) => {
-    const { name, email, password } = req.body;
+    const { nome, codigo, senha } = req.body;
     try {
+      // Check for duplicate code
+      const { data: usuarioExistente } = await supabaseAdmin
+        .from("usuarios")
+        .select("id")
+        .eq("codigo", codigo)
+        .maybeSingle();
+
+      if (usuarioExistente) {
+        return res.status(400).json({ error: "Já existe um usuário com este código" });
+      }
+
+      // Map codigo to internal email
+      const emailFicticio = `${codigo}@plannerbpo.com`;
+
       // 1. Create user in Auth
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
+        email: emailFicticio,
+        password: senha,
         email_confirm: true,
-        user_metadata: { name }
+        user_metadata: { nome, codigo }
       });
 
       if (authError) throw authError;
@@ -63,9 +77,9 @@ async function startServer() {
       const { error: dbError } = await supabaseAdmin
         .from("usuarios")
         .insert({
-          id: authData.user.id,
-          name,
-          email
+          user_id: authData.user.id,
+          nome,
+          codigo
         });
 
       if (dbError) throw dbError;
@@ -87,7 +101,7 @@ async function startServer() {
       const { error: dbError } = await supabaseAdmin
         .from("usuarios")
         .delete()
-        .eq("id", id);
+        .eq("user_id", id);
       
       if (dbError) throw dbError;
 

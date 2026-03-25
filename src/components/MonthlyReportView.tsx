@@ -74,11 +74,14 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
 
   useEffect(() => {
     fetchReportData();
-  }, [selectedMonth, selectedYear, filterEmpresa, filterUser]);
+  }, [selectedMonth, selectedYear, filterEmpresa, filterUser, users]);
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase.from('profiles').select('*');
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nome, codigo')
+        .order('nome', { ascending: true });
       if (!error && data) {
         setUsers(data);
       }
@@ -90,7 +93,13 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
   const fetchReportData = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('tarefas').select('*, empresas(nome), profiles:user_id(name)');
+      let query = supabase.from('tarefas').select(`
+        *,
+        empresas (
+          id,
+          nome
+        )
+      `);
       
       // Month/Year filtering
       const startDate = new Date(selectedYear, selectedMonth - 1, 1);
@@ -99,23 +108,26 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
       query = query.gte('date', startDate.toISOString().split('T')[0])
                    .lte('date', endDate.toISOString().split('T')[0]);
 
+      if (currentUser.role !== 'ADMIN') {
+        query = query.eq('responsible', currentUser.user_code);
+      }
+
       if (filterEmpresa) {
-        query = query.eq('id_empresa', filterEmpresa);
+        query = query.eq('id_empresa', Number(filterEmpresa));
       }
       
-      if (filterUser) {
-        query = query.eq('user_id', filterUser);
-      } else if (currentUser.role === 'USER') {
-        query = query.eq('user_id', currentUser.id);
+      if (filterUser && currentUser.role === 'ADMIN') {
+        query = query.eq('responsible', filterUser);
       }
 
       const { data, error } = await query;
+      console.log('tarefas retornadas:', data, 'erro:', error);
 
       if (!error && data) {
         const formattedTasks = data.map(t => ({
           ...t,
-          empresa_name: t.empresas?.nome,
-          user_name: t.profiles?.name
+          empresa_name: t.empresas?.nome || 'Sem Empresa',
+          user_name: users?.find(u => u.codigo === t.responsible)?.nome || t.responsible
         }));
         setTasks(formattedTasks);
       }
@@ -240,7 +252,8 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
               <select 
                 value={filterEmpresa}
                 onChange={(e) => setFilterEmpresa(e.target.value)}
-                className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all min-w-[180px]"
+                disabled={currentUser.role === 'USER'}
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all min-w-[180px] disabled:opacity-50"
               >
                 <option value="">Todas as Empresas</option>
                 {empresas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
@@ -256,7 +269,7 @@ export const MonthlyReportView = ({ currentUser, empresas }: MonthlyReportViewPr
                   className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all min-w-[180px]"
                 >
                   <option value="">Todos os Usuários</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  {users.map(u => <option key={u.codigo} value={u.codigo}>{u.nome}</option>)}
                 </select>
               </div>
             )}

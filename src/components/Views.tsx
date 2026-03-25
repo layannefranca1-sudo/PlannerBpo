@@ -1,3 +1,4 @@
+'use client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CheckSquare, 
@@ -85,6 +86,7 @@ export const PriorityBadge = ({ priority }: { priority: Priority }) => {
 
 export const DashboardView = ({ 
   stats, 
+  tasks,
   progressData, 
   delayedTasks, 
   delayedRanking, 
@@ -98,9 +100,14 @@ export const DashboardView = ({
   setSelectedMonth,
   filterStatus,
   setFilterStatus,
-  empresas
+  filterResponsible,
+  setFilterResponsible,
+  empresas,
+  users,
+  currentUser
 }: {
   stats: DashboardStats,
+  tasks: Task[],
   progressData: any[],
   delayedTasks: Task[],
   delayedRanking: any[],
@@ -114,10 +121,60 @@ export const DashboardView = ({
   setSelectedMonth: (val: number) => void,
   filterStatus: string,
   setFilterStatus: (val: string) => void,
-  empresas: Empresa[]
+  filterResponsible: string,
+  setFilterResponsible: (val: string) => void,
+  empresas: Empresa[],
+  users: any[],
+  currentUser: User
 }) => {
   return (
     <div className="space-y-12">
+      {/* Filters Section (Admin only) */}
+      {currentUser.role === 'ADMIN' && (
+        <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/5 flex flex-wrap items-center gap-6">
+          <div className="flex items-center gap-3">
+            <Filter className="w-5 h-5 text-indigo-400" />
+            <span className="text-xs font-black text-white uppercase tracking-widest">Filtros</span>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-4">
+            <select 
+              value={filterEmpresa}
+              onChange={(e) => setFilterEmpresa(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all"
+            >
+              <option value="">Todas as Empresas</option>
+              {empresas.map(e => (
+                <option key={e.id} value={e.id}>{e.nome}</option>
+              ))}
+            </select>
+
+            <select 
+              value={filterResponsible}
+              onChange={(e) => setFilterResponsible(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all"
+            >
+              <option value="">Todos os Responsáveis</option>
+              {users.map(u => (
+                <option key={u.codigo} value={u.codigo}>{u.nome}</option>
+              ))}
+            </select>
+
+            <select 
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all"
+            >
+              <option value="all">Todos os Status</option>
+              <option value="PENDENTE">Pendente</option>
+              <option value="EM_ANDAMENTO">Em Andamento</option>
+              <option value="CONCLUIDA">Concluída</option>
+              <option value="ATRASADA">Atrasada</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {[
@@ -238,6 +295,71 @@ export const DashboardView = ({
           </div>
         </div>
       </div>
+
+      {/* Company Cards Section */}
+      <div className="space-y-8">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center">
+            <MapPin className="w-6 h-6 text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black text-white uppercase tracking-tight">Visão por Empresa</h3>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Status detalhado de cada cliente</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          {empresas.map((empresa: any) => {
+            const tarefasDaEmpresa = tasks.filter((t: any) => Number(t.id_empresa) === Number(empresa.id));
+            const empresaProgress = progressData.find((p: any) => Number(p.id) === Number(empresa.id))?.progress || 0;
+            
+            return (
+              <div key={empresa.id} className="bg-white/5 rounded-[3rem] border border-white/5 overflow-hidden flex flex-col hover:bg-white/[0.08] transition-all group">
+                <div className="p-10 border-b border-white/5 bg-white/[0.02]">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <MapPin className="w-6 h-6 text-indigo-400" />
+                      </div>
+                      <h3 className="text-xl font-black text-white uppercase tracking-tight">{empresa.nome}</h3>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Conclusão</p>
+                      <p className="text-xl font-black text-emerald-500">{empresaProgress}%</p>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-emerald-500 transition-all duration-1000" 
+                      style={{ width: `${empresaProgress}%` }} 
+                    />
+                  </div>
+                </div>
+                <div className="p-8 space-y-4 flex-1">
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Tarefas da Empresa</h4>
+                  {tarefasDaEmpresa.length === 0 ? (
+                    <p className="text-xs text-slate-600 font-bold uppercase tracking-widest py-4">Nenhuma tarefa vinculada</p>
+                  ) : (
+                    tarefasDaEmpresa.slice(0, 5).map((task: any) => (
+                      <div 
+                        key={task.id}
+                        onClick={() => setViewingTask(task)}
+                        className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-all cursor-pointer"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-slate-300">{task.name}</span>
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Resp: {task.responsible_name || task.responsible}</span>
+                        </div>
+                        <StatusBadge status={task.status} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };
@@ -317,7 +439,66 @@ export const MyTasksView = ({
   );
 };
 
-export const KanbanView = ({ tasks, onUpdate, setViewingTask }: { tasks: Task[], onUpdate: (taskId: number, newStatus: Status) => Promise<void>, setViewingTask: (task: Task | null) => void }) => {
+export const KanbanView = ({ currentUser, empresas, onUpdate, setViewingTask }: { currentUser: User, empresas: Empresa[], onUpdate: (taskId: number, newStatus: Status) => Promise<void>, setViewingTask: (task: Task | null) => void }) => {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterEmpresa, setFilterEmpresa] = useState<string>('all');
+  const [filterUser, setFilterUser] = useState<string>('all');
+  const [users, setUsers] = useState<any[]>([]);
+
+  const fetchKanbanTasks = async () => {
+    setLoading(true);
+    try {
+      const { data: allUsers } = await supabase.from('usuarios').select('codigo, nome');
+      if (allUsers) setUsers(allUsers);
+      
+      let query = supabase
+        .from('tarefas')
+        .select(`
+          *,
+          empresas (
+            id,
+            nome
+          )
+        `);
+      
+      if (currentUser.role !== 'ADMIN') {
+        query = query.eq('responsible', currentUser.user_code);
+      }
+
+      const { data, error } = await query;
+      
+      if (data) {
+        let filtered = data.map(t => ({
+          ...t,
+          empresa_name: t.empresas?.nome || 'Sem Empresa',
+          responsible_name: allUsers?.find(u => u.codigo === t.responsible)?.nome || t.responsible
+        }));
+
+        setTasks(filtered);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchKanbanTasks();
+  }, []);
+
+  const filteredTasks = useMemo(() => {
+    let result = tasks;
+    if (filterEmpresa !== 'all') {
+      result = result.filter(t => Number(t.id_empresa) === Number(filterEmpresa));
+    }
+    if (filterUser !== 'all') {
+      result = result.filter(t => t.responsible === filterUser);
+    }
+    return result;
+  }, [tasks, filterEmpresa, filterUser]);
+
   const columns = [
     { id: 'PENDENTE', label: 'Pendente', color: 'bg-amber-500' },
     { id: 'EM_ANDAMENTO', label: 'Em Andamento', color: 'bg-indigo-500' },
@@ -325,42 +506,90 @@ export const KanbanView = ({ tasks, onUpdate, setViewingTask }: { tasks: Task[],
     { id: 'ATRASADA', label: 'Atrasada', color: 'bg-rose-500' },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-40">
+        <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex gap-8 overflow-x-auto pb-8 custom-scrollbar min-h-[700px]">
-      {columns.map(col => (
-        <div key={col.id} className="flex-1 min-w-[350px] bg-white/[0.02] rounded-[2.5rem] border border-white/5 flex flex-col">
-          <div className="p-8 border-b border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-2 h-2 rounded-full ${col.color}`} />
-              <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">{col.label}</h3>
-            </div>
-            <span className="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-1 rounded-lg">
-              {tasks.filter((t: Task) => t.status === col.id).length}
-            </span>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between bg-white/5 p-6 rounded-[2rem] border border-white/5">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center">
+            <Filter className="w-5 h-5 text-indigo-400" />
           </div>
-          <div className="p-6 space-y-4 flex-1">
-            {tasks.filter((t: Task) => t.status === col.id).map((task: Task) => (
-              <div 
-                key={task.id}
-                onClick={() => setViewingTask(task)}
-                className="bg-white/5 p-6 rounded-2xl border border-white/5 hover:bg-white/[0.08] transition-all cursor-pointer group"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <PriorityBadge priority={task.priority} />
-                </div>
-                <h4 className="text-sm font-bold text-white mb-4 group-hover:text-indigo-400 transition-colors">{task.name}</h4>
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  <span className="flex items-center gap-2">
-                    <MapPin className="w-3 h-3" />
-                    {task.empresa_name}
-                  </span>
-                  <span>{format(parseISO(task.date), 'dd/MM')}</span>
-                </div>
-              </div>
-            ))}
+          <div>
+            <h3 className="text-sm font-black text-white uppercase tracking-widest">Filtrar Kanban</h3>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Visualize por empresa {currentUser.role === 'ADMIN' && 'ou responsável'}</p>
           </div>
         </div>
-      ))}
+        <div className="flex gap-4">
+          <select 
+            value={filterEmpresa}
+            onChange={(e) => setFilterEmpresa(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-xl px-6 py-3 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all min-w-[200px]"
+          >
+            <option value="all">Todas as Empresas</option>
+            {empresas.map(emp => (
+              <option key={emp.id} value={emp.id}>{emp.nome}</option>
+            ))}
+          </select>
+
+          {currentUser.role === 'ADMIN' && (
+            <select 
+              value={filterUser}
+              onChange={(e) => setFilterUser(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded-xl px-6 py-3 text-xs font-bold text-white outline-none focus:border-indigo-500 transition-all min-w-[200px]"
+            >
+              <option value="all">Todos os Responsáveis</option>
+              {users.map(u => (
+                <option key={u.codigo} value={u.codigo}>{u.nome}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-8 overflow-x-auto pb-8 custom-scrollbar min-h-[700px]">
+        {columns.map(col => (
+          <div key={col.id} className="flex-1 min-w-[350px] bg-white/[0.02] rounded-[2.5rem] border border-white/5 flex flex-col">
+            <div className="p-8 border-b border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${col.color}`} />
+                <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">{col.label}</h3>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-1 rounded-lg">
+                {filteredTasks.filter((t: Task) => t.status === col.id).length}
+              </span>
+            </div>
+            <div className="p-6 space-y-4 flex-1">
+              {filteredTasks.filter((t: Task) => t.status === col.id).map((task: Task) => (
+                <div 
+                  key={task.id}
+                  onClick={() => setViewingTask(task)}
+                  className="bg-white/5 p-6 rounded-2xl border border-white/5 hover:bg-white/[0.08] transition-all cursor-pointer group"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <PriorityBadge priority={task.priority} />
+                  </div>
+                  <h4 className="text-sm font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">{task.name}</h4>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Resp: {task.responsible_name || task.responsible}</p>
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <span className="flex items-center gap-2">
+                      <MapPin className="w-3 h-3" />
+                      {task.empresa_name}
+                    </span>
+                    <span>{format(parseISO(task.date), 'dd/MM')}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -473,8 +702,8 @@ export const EmpresasView = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
       {empresas.map((empresa: any) => {
-        const empresaTasks = tasks.filter((t: any) => t.id_empresa === empresa.id);
-        const empresaProgress = progressData.find((p: any) => p.id === empresa.id)?.progress || 0;
+        const tarefasDaEmpresa = tasks.filter((t: any) => Number(t.id_empresa) === Number(empresa.id));
+        const empresaProgress = progressData.find((p: any) => Number(p.id) === Number(empresa.id))?.progress || 0;
         
         return (
           <div key={empresa.id} className="bg-white/5 rounded-[3rem] border border-white/5 overflow-hidden flex flex-col hover:bg-white/[0.08] transition-all group">
@@ -500,16 +729,19 @@ export const EmpresasView = ({
             </div>
             <div className="p-8 space-y-4 flex-1">
               <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Tarefas da Empresa</h4>
-              {empresaTasks.length === 0 ? (
+              {tarefasDaEmpresa.length === 0 ? (
                 <p className="text-xs text-slate-600 font-bold uppercase tracking-widest py-4">Nenhuma tarefa vinculada</p>
               ) : (
-                empresaTasks.slice(0, 5).map((task: any) => (
+                tarefasDaEmpresa.slice(0, 5).map((task: any) => (
                   <div 
                     key={task.id}
                     onClick={() => setViewingTask(task)}
                     className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-all cursor-pointer"
                   >
-                    <span className="text-xs font-bold text-slate-300">{task.name}</span>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-300">{task.name}</span>
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Resp: {task.responsible_name || task.responsible}</span>
+                    </div>
                     <StatusBadge status={task.status} />
                   </div>
                 ))
@@ -524,6 +756,7 @@ export const EmpresasView = ({
 
 export const SettingsView = ({ 
   empresas, 
+  users,
   templates, 
   fetchData, 
   handleDeleteEmpresa, 
@@ -541,6 +774,7 @@ export const SettingsView = ({
   showNotification
 }: { 
   empresas: Empresa[], 
+  users: any[],
   templates: any[], 
   fetchData: () => Promise<void>, 
   handleDeleteEmpresa: (id: number) => Promise<void>, 
@@ -666,13 +900,16 @@ export const SettingsView = ({
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Responsável *</label>
-                <input 
-                  type="text" 
+                <select 
                   value={newTemplate.responsible}
                   onChange={(e) => setNewTemplate({...newTemplate, responsible: e.target.value})}
-                  placeholder="Nome do responsável"
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white outline-none focus:border-emerald-500 transition-all"
-                />
+                >
+                  <option value="">Selecionar...</option>
+                  {users.map((u: any) => (
+                    <option key={u.id} value={u.codigo || u.user_id}>{u.nome}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -830,7 +1067,7 @@ export const SettingsView = ({
                       <div className="text-[10px] text-slate-500 mt-1 line-clamp-1">{t.description}</div>
                     </td>
                     <td className="px-8 py-6">
-                      <span className="text-xs font-bold text-slate-400">{empresas.find((s: any) => s.id === t.id_empresa)?.nome || 'N/A'}</span>
+                      <span className="text-xs font-bold text-slate-400">{empresas.find((s: any) => Number(s.id) === Number(t.id_empresa))?.nome || 'N/A'}</span>
                     </td>
                     <td className="px-8 py-6 text-xs text-slate-400">{t.responsible}</td>
                     <td className="px-8 py-6">
@@ -891,7 +1128,7 @@ interface TaskCardProps {
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, empresas, onUpdate, onViewTask }) => {
-  const empresa = empresas.find(s => s.id === task.id_empresa);
+  const empresa = empresas.find(s => Number(s.id) === Number(task.id_empresa));
   const checklist = task.checklist || [];
   const completedItems = checklist.filter((i: ChecklistItem) => i.completed).length;
   const totalItems = checklist.length;
@@ -915,6 +1152,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, empresas, onUpdate, on
       <div className="mb-6">
         <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">{empresa?.nome || 'Empresa não definida'}</p>
         <h4 className="text-lg font-black text-white leading-tight">{task.name}</h4>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Resp: {task.responsible_name || task.responsible}</p>
       </div>
 
       <div className="space-y-4">
@@ -1029,10 +1267,16 @@ export const TaskDetailModal = ({
               <PriorityBadge priority={task.priority} />
             </div>
             <h2 className="text-3xl font-black text-white">{task.name}</h2>
-            <p className="text-slate-500 text-sm mt-2 flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4" />
-              {format(parseISO(task.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-            </p>
+            <div className="flex items-center gap-4 mt-2">
+              <p className="text-slate-500 text-sm flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4" />
+                {format(parseISO(task.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </p>
+              <p className="text-slate-500 text-sm flex items-center gap-2">
+                <UserIcon className="w-4 h-4" />
+                Resp: {task.responsible_name || task.responsible}
+              </p>
+            </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-2xl transition-all">
             <X className="w-6 h-6 text-slate-400" />
@@ -1148,39 +1392,82 @@ export const TaskDetailModal = ({
 
 export const UsersView = ({ 
   users, 
+  empresas,
   fetchUsers,
   showNotification
 }: { 
   users: any[], 
+  empresas: Empresa[],
   fetchUsers: () => Promise<void>,
   showNotification: (message: string, type?: 'success' | 'error' | 'info') => void
 }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [nome, setNome] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedUserForEmpresas, setSelectedUserForEmpresas] = useState<any | null>(null);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password) {
+    if (!nome || !codigo || !senha) {
       showNotification('Preencha todos os campos', 'error');
       return;
     }
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password })
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao criar usuário');
+      // 1. Verificar se já existe um usuário com o mesmo código na tabela usuarios ANTES de criar no Auth
+      const { data: usuarioExistente } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('codigo', codigo)
+        .maybeSingle();
+
+      if (usuarioExistente) {
+        showNotification('Já existe um usuário com este código', 'error');
+        return;
       }
+
+      const emailFicticio = `${codigo}@plannerbpo.com`;
+      
+      // 2. Criar no Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({ 
+        email: emailFicticio, 
+        password: senha,
+        options: {
+          data: { nome, codigo }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // 3. Inserir na tabela usuarios com as colunas corretas
+        const { error: dbError } = await supabase
+          .from('usuarios')
+          .insert({ 
+            codigo, 
+            nome, 
+            user_id: authData.user.id,
+            tipo_usuario: 'usuario'
+          });
+
+        if (dbError) {
+          // 4. Se o insert na tabela usuarios falhar, deletar o usuário recém criado no Auth
+          try {
+            await fetch(`/api/admin/users/${authData.user.id}`, {
+              method: 'DELETE'
+            });
+          } catch (cleanupError) {
+            console.error('Erro ao realizar rollback no Auth:', cleanupError);
+          }
+          throw dbError;
+        }
+      }
+
       showNotification('Usuário criado com sucesso!', 'success');
-      setName('');
-      setEmail('');
-      setPassword('');
+      setNome('');
+      setCodigo('');
+      setSenha('');
       await fetchUsers();
     } catch (error: any) {
       showNotification(error.message, 'error');
@@ -1192,10 +1479,16 @@ export const UsersView = ({
   const handleDeleteUser = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
     try {
+      // Usar a rota do servidor para deletar tanto do Auth quanto da tabela usuarios
       const response = await fetch(`/api/admin/users/${id}`, {
         method: 'DELETE'
       });
-      if (!response.ok) throw new Error('Erro ao excluir usuário');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao excluir usuário');
+      }
+
       showNotification('Usuário excluído com sucesso!', 'success');
       await fetchUsers();
     } catch (error: any) {
@@ -1213,28 +1506,28 @@ export const UsersView = ({
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Nome Completo</label>
             <input 
               type="text" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white outline-none focus:border-indigo-500 transition-all"
               placeholder="Ex: João Silva"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">E-mail</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Código</label>
             <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text" 
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white outline-none focus:border-indigo-500 transition-all"
-              placeholder="joao@exemplo.com"
+              placeholder="Ex: 001"
             />
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Senha</label>
             <input 
               type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white outline-none focus:border-indigo-500 transition-all"
               placeholder="••••••••"
             />
@@ -1256,26 +1549,225 @@ export const UsersView = ({
         <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8">Usuários Cadastrados</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {users.map((user) => (
-            <div key={user.id} className="bg-white/5 rounded-3xl p-6 border border-white/5 flex items-center justify-between group hover:bg-white/[0.08] transition-all">
+            <div 
+              key={user.id} 
+              onClick={() => setSelectedUserForEmpresas(user)}
+              className="bg-white/5 rounded-3xl p-6 border border-white/5 flex items-center justify-between group hover:bg-white/[0.08] transition-all cursor-pointer"
+            >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center">
                   <UserIcon className="w-6 h-6 text-indigo-400" />
                 </div>
                 <div>
-                  <h4 className="text-white font-bold text-sm">{user.name}</h4>
-                  <p className="text-slate-500 text-xs">{user.email}</p>
+                  <h4 className="text-white font-bold text-sm">{user.nome}</h4>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Código: {user.codigo}</p>
+                  </div>
                 </div>
               </div>
-              <button 
-                onClick={() => handleDeleteUser(user.id)}
-                className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteUser(user.id);
+                  }}
+                  className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
       </div>
+
+      {selectedUserForEmpresas && (
+        <UserEmpresasModal 
+          user={selectedUserForEmpresas}
+          empresas={empresas}
+          onClose={() => setSelectedUserForEmpresas(null)}
+          showNotification={showNotification}
+        />
+      )}
+    </div>
+  );
+};
+
+const UserEmpresasModal = ({ 
+  user, 
+  empresas, 
+  onClose, 
+  showNotification 
+}: { 
+  user: any, 
+  empresas: Empresa[], 
+  onClose: () => void,
+  showNotification: (message: string, type?: 'success' | 'error' | 'info') => void
+}) => {
+  const [vinculos, setVinculos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState('');
+  const [funcao, setFuncao] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+
+  const fetchVinculos = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('usuario_empresa')
+        .select(`
+          *,
+          empresas (
+            id,
+            nome
+          )
+        `)
+        .eq('user_id', user.id);
+      
+      if (error) throw error;
+      setVinculos(data || []);
+    } catch (error: any) {
+      showNotification(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVinculos();
+  }, [user.id]);
+
+  const handleAddVinculo = async () => {
+    if (!selectedEmpresaId || !funcao) {
+      showNotification('Selecione uma empresa e defina a função', 'error');
+      return;
+    }
+
+    setIsAdding(true);
+    try {
+      const { error } = await supabase
+        .from('usuario_empresa')
+        .insert({
+          user_id: user.id,
+          id_empresa: parseInt(selectedEmpresaId, 10),
+          funcao
+        });
+
+      if (error) throw error;
+      
+      showNotification('Vínculo adicionado com sucesso!', 'success');
+      setSelectedEmpresaId('');
+      setFuncao('');
+      await fetchVinculos();
+    } catch (error: any) {
+      showNotification(error.message, 'error');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleRemoveVinculo = async (id: number) => {
+    if (!confirm('Remover vínculo com esta empresa?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('usuario_empresa')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      showNotification('Vínculo removido!', 'success');
+      await fetchVinculos();
+    } catch (error: any) {
+      showNotification(error.message, 'error');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="glass-card w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10"
+      >
+        <div className="p-8 border-b border-white/10 flex justify-between items-start bg-white/5">
+          <div>
+            <h2 className="text-2xl font-black text-white">Empresas de {user.nome}</h2>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Gerenciar vínculos e funções</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-2xl transition-all">
+            <X className="w-6 h-6 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+          {/* Add Section */}
+          <div className="bg-white/5 p-6 rounded-3xl border border-white/5 space-y-4">
+            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vincular Nova Empresa</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <select 
+                value={selectedEmpresaId}
+                onChange={(e) => setSelectedEmpresaId(e.target.value)}
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-indigo-500 transition-all"
+              >
+                <option value="">Selecionar Empresa...</option>
+                {empresas.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                ))}
+              </select>
+              <input 
+                type="text"
+                value={funcao}
+                onChange={(e) => setFuncao(e.target.value)}
+                placeholder="Função (ex: Gerente)"
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-indigo-500 transition-all"
+              />
+            </div>
+            <button 
+              onClick={handleAddVinculo}
+              disabled={isAdding}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl transition-all text-xs uppercase tracking-widest disabled:opacity-50"
+            >
+              {isAdding ? 'ADICIONANDO...' : 'ADICIONAR VÍNCULO'}
+            </button>
+          </div>
+
+          {/* List Section */}
+          <div className="space-y-4">
+            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Empresas Vinculadas</h4>
+            {loading ? (
+              <div className="py-12 flex justify-center">
+                <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : vinculos.length === 0 ? (
+              <p className="text-center py-12 text-slate-500 text-xs italic">Nenhuma empresa vinculada.</p>
+            ) : (
+              <div className="space-y-3">
+                {vinculos.map((v) => (
+                  <div key={v.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center">
+                        <MapPin className="w-5 h-5 text-indigo-400" />
+                      </div>
+                      <div>
+                        <h5 className="text-white font-bold text-sm">{v.empresas?.nome}</h5>
+                        <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest">{v.funcao}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleRemoveVinculo(v.id)}
+                      className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

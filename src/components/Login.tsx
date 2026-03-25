@@ -17,31 +17,52 @@ export const Login = ({ onLogin }: LoginProps) => {
     setError('');
     setLoading(true);
 
-    // Simulate a small delay for better UX
-    setTimeout(() => {
-      if (username === 'admin' && password === '1234') {
-        const user = {
-          id: 'admin-1',
-          name: 'Administrador',
-          email: 'admin@bpo.com',
-          role: 'ADMIN',
-          user_code: 'admin'
-        };
-        onLogin(user);
-      } else if (username === 'user' && password === '1234') {
-        const user = {
-          id: 'user-1',
-          name: 'Usuário Padrão',
-          email: 'user@bpo.com',
-          role: 'USER',
-          user_code: 'user'
-        };
-        onLogin(user);
-      } else {
-        setError('Usuário ou senha incorretos.');
+    try {
+      // Internal mapping: codigo -> email
+      const emailFicticio = `${username}@plannerbpo.com`;
+
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: emailFicticio,
+        password,
+      });
+
+      if (authError) {
+        // Fallback for legacy mock accounts
+        if (username === 'admin' && password === '1234') {
+          onLogin({
+            id: 'admin-1',
+            name: 'Administrador',
+            role: 'ADMIN',
+            user_code: 'admin'
+          });
+          return;
+        }
+        throw authError;
       }
+
+      if (data.user) {
+        // Fetch profile from usuarios table
+        const { data: profile, error: profileError } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('user_id', data.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        onLogin({
+          id: profile.id,
+          name: profile.nome,
+          role: profile.tipo_usuario?.toLowerCase() === 'admin' ? 'ADMIN' : 'USER',
+          user_code: profile.codigo
+        });
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError('Código ou senha incorretos.');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   return (
@@ -61,14 +82,14 @@ export const Login = ({ onLogin }: LoginProps) => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Usuário</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-2">Código</label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                 <input 
                   type="text" 
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
+                  placeholder="Ex: 001"
                   className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-white outline-none focus:border-indigo-500 transition-all"
                   required
                 />
@@ -118,7 +139,7 @@ export const Login = ({ onLogin }: LoginProps) => {
                   <span className="font-bold text-indigo-400">Admin:</span> admin / 1234
                 </p>
                 <p className="text-[10px] text-slate-400">
-                  <span className="font-bold text-indigo-400">Usuário:</span> user / 1234
+                  Utilize o código cadastrado pelo administrador.
                 </p>
               </div>
             </div>

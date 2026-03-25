@@ -6,6 +6,14 @@ export interface User {
   role: 'ADMIN' | 'USER';
 }
 
+export interface UsuarioEmpresa {
+  id: number;
+  user_id: string | number;
+  id_empresa: number;
+  funcao: string;
+  created_at: string;
+}
+
 export type Priority = 'BAIXA' | 'MEDIA' | 'ALTA';
 export type Status = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'ATRASADA';
 export type Frequency = 'DIAS_UTEIS' | 'SEMANAL' | 'MENSAL';
@@ -30,6 +38,7 @@ export interface Task {
   name: string;
   description: string;
   responsible: string;
+  responsible_name?: string;
   priority: Priority;
   checklist: ChecklistItem[];
   empresa_name?: string;

@@ -109,7 +109,7 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser && !newTemplate.responsible) {
-      setNewTemplate(prev => ({ ...prev, responsible: currentUser.name }));
+      setNewTemplate(prev => ({ ...prev, responsible: currentUser.user_code || currentUser.name }));
     }
   }, [currentUser]);
 
@@ -140,10 +140,15 @@ export default function App() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/api/admin/users');
-      if (!response.ok) throw new Error('Failed to fetch users');
-      const data = await response.json();
-      setUsers(data);
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nome, codigo, tipo_usuario, user_id')
+        .order('created_at', { ascending: true });
+      
+      console.log('usuarios:', data, 'erro:', error);
+      
+      if (error) throw error;
+      setUsers(data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
     }
@@ -158,94 +163,145 @@ export default function App() {
     try {
       // Fetch Empresas
       let empresasQuery = supabase.from('empresas').select('*');
-      const { data: allEmpresas, error: empresasError } = await empresasQuery;
-      if (empresasError) throw empresasError;
-
-      let filteredEmpresas = allEmpresas || [];
+      
       if (currentUser.role === 'USER') {
-        // For users, we might want to only show empresas where they have tasks
-        // Fetch tasks for this user to see which empresas they are assigned to
-        const { data: userTasks } = await supabase
-          .from('tarefas')
+        const { data: userEmpresas } = await supabase
+          .from('usuario_empresa')
           .select('id_empresa')
           .eq('user_id', currentUser.id);
         
-        const assignedEmpresaIds = new Set(userTasks?.map(t => t.id_empresa) || []);
-        filteredEmpresas = filteredEmpresas.filter(s => assignedEmpresaIds.has(s.id));
+        const empresaIds = userEmpresas?.map(ue => ue.id_empresa) || [];
+        
+        if (empresaIds.length > 0) {
+          empresasQuery = empresasQuery.in('id', empresaIds);
+        } else {
+          empresasQuery = empresasQuery.eq('id', -1);
+        }
       }
-      setEmpresas(filteredEmpresas);
+
+      const { data: allEmpresas, error: empresasError } = await empresasQuery;
+      if (empresasError) throw empresasError;
+
+      setEmpresas(allEmpresas || []);
 
       // Fetch Templates
       let templatesQuery = supabase.from('task_templates').select('*');
       if (currentUser.role === 'USER') {
-        templatesQuery = templatesQuery.eq('user_id', currentUser.id);
+        // Fetch companies linked to user
+        const { data: userEmpresas } = await supabase
+          .from('usuario_empresa')
+          .select('id_empresa')
+          .eq('user_id', currentUser.id);
+        
+        const empresaIds = userEmpresas?.map(ue => ue.id_empresa) || [];
+        
+        if (empresaIds.length > 0) {
+          templatesQuery = templatesQuery.in('id_empresa', empresaIds);
+        } else {
+          templatesQuery = templatesQuery.eq('id', -1);
+        }
       }
       const { data: templatesData, error: templatesError } = await templatesQuery;
       if (templatesError) throw templatesError;
       setTemplates(templatesData || []);
 
+      // Fetch Users (to map responsible code to name)
+      const { data: allUsers, error: usersError } = await supabase
+        .from('usuarios')
+        .select('codigo, nome');
+      
+      if (usersError) throw usersError;
+
       // Fetch Tasks
-      let tasksQuery = supabase.from('tarefas').select('*, empresas(nome), profiles:user_id(name)');
-      
-      if (currentUser.role === 'USER') {
-        tasksQuery = tasksQuery.eq('user_id', currentUser.id);
+      let tasksQuery = supabase
+        .from('tarefas')
+        .select(`
+          *,
+          empresas (
+            id,
+            nome
+          )
+        `);
+
+      if (currentUser.role !== 'ADMIN') {
+        tasksQuery = tasksQuery.eq('responsible', currentUser.user_code);
+      } else {
+        // Admin filters
+        if (filterResponsible) {
+          tasksQuery = tasksQuery.eq('responsible', filterResponsible);
+        }
+        if (filterEmpresa) {
+          tasksQuery = tasksQuery.eq('id_empresa', Number(filterEmpresa));
+        }
+        if (filterStatus && filterStatus !== 'all') {
+          tasksQuery = tasksQuery.eq('status', filterStatus);
+        }
       }
+
+      const { data: tasksData, error: tasksError } = await tasksQuery;
       
+      console.log('tarefas retornadas:', tasksData, 'erro:', tasksError);
+      
+      if (tasksError) throw tasksError;
+      
+      let filteredTasks = (tasksData || []).map(t => ({
+        ...t,
+        empresa_name: t.empresas?.nome || 'Sem Empresa',
+        responsible_name: allUsers?.find(u => u.codigo === t.responsible)?.nome || t.responsible
+      }));
+
+      // Filter by selected company
       if (selectedEmpresaId) {
-        tasksQuery = tasksQuery.eq('id_empresa', selectedEmpresaId);
+        filteredTasks = filteredTasks.filter(t => Number(t.id_empresa) === Number(selectedEmpresaId));
       }
 
       // Month/Year filtering
-      const startDate = format(startOfMonth(new Date(selectedYear, selectedMonth - 1)), 'yyyy-MM-dd');
-      const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth - 1)), 'yyyy-MM-dd');
-      tasksQuery = tasksQuery.gte('date', startDate).lte('date', endDate);
-
-      const { data: tasksData, error: tasksError } = await tasksQuery;
-      if (tasksError) throw tasksError;
+      const startDateStr = format(startOfMonth(new Date(selectedYear, selectedMonth - 1)), 'yyyy-MM-dd');
+      const endDateStr = format(endOfMonth(new Date(selectedYear, selectedMonth - 1)), 'yyyy-MM-dd');
       
-      const formattedTasks = (tasksData || []).map(t => ({
-        ...t,
-        empresa_name: t.empresas?.nome,
-        user_name: t.profiles?.name
-      }));
-      setTasks(formattedTasks);
+      filteredTasks = filteredTasks.filter(t => t.date >= startDateStr && t.date <= endDateStr);
+
+      setTasks(filteredTasks);
 
       // Calculate Stats
       const stats = {
-        total: formattedTasks.length,
-        concluded: formattedTasks.filter(t => t.status === 'CONCLUIDA').length,
-        in_progress: formattedTasks.filter(t => t.status === 'EM_ANDAMENTO').length,
-        pending: formattedTasks.filter(t => t.status === 'PENDENTE').length,
-        delayed: formattedTasks.filter(t => t.status === 'ATRASADA').length,
+        total: filteredTasks.length,
+        concluded: filteredTasks.filter(t => t.status === 'CONCLUIDA').length,
+        in_progress: filteredTasks.filter(t => t.status === 'EM_ANDAMENTO').length,
+        pending: filteredTasks.filter(t => t.status === 'PENDENTE').length,
+        delayed: filteredTasks.filter(t => t.status === 'ATRASADA').length,
       };
       setStats(stats);
 
       // Delayed Tasks
-      setDelayedTasks(formattedTasks.filter(t => t.status === 'ATRASADA'));
+      setDelayedTasks(filteredTasks.filter(t => t.status === 'ATRASADA'));
 
       // Progress Data
       const progress = (allEmpresas || []).map(s => {
-        const empresaTasks = formattedTasks.filter(t => t.id_empresa === s.id);
+        const empresaTasks = filteredTasks.filter(t => Number(t.id_empresa) === Number(s.id));
         const total = empresaTasks.length;
         const concluded = empresaTasks.filter(t => t.status === 'CONCLUIDA').length;
         return {
+          id: s.id,
           name: s.nome,
           total,
           concluded,
-          percentage: total > 0 ? Math.round((concluded / total) * 100) : 0
+          progress: total > 0 ? Math.round((concluded / total) * 100) : 0
         };
       });
       setProgressData(progress);
 
       // Delayed Ranking
       const ranking = (allEmpresas || []).map(s => {
-        const delayedCount = formattedTasks.filter(t => t.id_empresa === s.id && t.status === 'ATRASADA').length;
+        const delayedCount = filteredTasks.filter(t => Number(t.id_empresa) === Number(s.id) && t.status === 'ATRASADA').length;
         return {
           id: s.id,
           name: s.nome,
           delayedCount
         };
-      }).sort((a, b) => b.delayedCount - a.delayedCount);
+      }).filter(r => r.delayedCount > 0)
+        .sort((a, b) => b.delayedCount - a.delayedCount)
+        .slice(0, 5);
       setDelayedRanking(ranking);
 
       if (currentUser.role === 'ADMIN') {
@@ -315,8 +371,11 @@ export default function App() {
   };
 
   const handleAddTemplate = async () => {
-    console.log('handleAddTemplate initiated with newTemplate:', newTemplate);
-    if (!newTemplate.name || !newTemplate.id_empresa || !newTemplate.responsible || !newTemplate.start_date || !newTemplate.end_date) {
+    const { name, id_empresa, responsible, frequency, start_date, end_date, priority, checklist, description } = newTemplate;
+    
+    console.log('Saving template:', { name, id_empresa, responsible, frequency, start_date, end_date });
+    
+    if (!name || !id_empresa || !responsible || !start_date || !end_date) {
       console.warn('Validation failed for newTemplate:', newTemplate);
       showNotification('Preencha todos os campos obrigatórios (*)', 'error');
       return;
@@ -324,27 +383,34 @@ export default function App() {
     
     try {
       const templateData = { 
-        ...newTemplate, 
-        id_empresa: Number(newTemplate.id_empresa),
+        name,
+        id_empresa: parseInt(id_empresa.toString(), 10),
+        responsible,
+        frequency,
+        start_date,
+        end_date,
+        priority,
+        checklist,
+        description,
         user_id: currentUser?.id 
       };
-      console.log('Saving template data:', templateData);
-      let result;
+
+      console.log('Salvando template:', { name, id_empresa: templateData.id_empresa, responsible, frequency, start_date, end_date });
       
+      let result;
       if (editingTemplate) {
-        console.log('Updating existing template id:', editingTemplate.id);
         result = await supabase.from('task_templates').update(templateData).eq('id', editingTemplate.id).select().single();
       } else {
-        console.log('Inserting new template');
         result = await supabase.from('task_templates').insert(templateData).select().single();
       }
+
+      console.log('Resultado:', result.data, 'Erro:', result.error);
 
       if (result.error) {
         console.error('Supabase error saving template:', result.error);
         throw result.error;
       }
 
-      console.log('Template saved successfully:', result.data);
       if (result.data) {
         console.log('Generating tasks from template...');
         await generateTasksFromTemplate(result.data);
@@ -363,7 +429,6 @@ export default function App() {
         checklist: []
       });
       setEditingTemplate(null);
-      console.log('Fetching updated data...');
       await fetchData();
     } catch (error: any) {
       console.error('Error saving template:', error);
@@ -717,7 +782,7 @@ export default function App() {
             >
               {activeTab === 'my-tasks' && (
                 <MyTasksView 
-                  tasks={tasks}
+                  tasks={tasks.filter(t => t.responsible === currentUser.user_code)}
                   empresas={empresas}
                   onUpdate={updateTaskStatus}
                   onViewTask={setViewingTask}
@@ -727,6 +792,7 @@ export default function App() {
               {activeTab === 'dashboard' && (
                 <DashboardView 
                   stats={stats}
+                  tasks={tasks}
                   progressData={progressData}
                   delayedTasks={delayedTasks}
                   delayedRanking={delayedRanking}
@@ -740,12 +806,17 @@ export default function App() {
                   setSelectedMonth={setSelectedMonth}
                   filterStatus={filterStatus}
                   setFilterStatus={setFilterStatus}
+                  filterResponsible={filterResponsible}
+                  setFilterResponsible={setFilterResponsible}
                   empresas={empresas}
+                  users={users}
+                  currentUser={currentUser}
                 />
               )}
               {activeTab === 'kanban' && (
                 <KanbanView 
-                  tasks={tasks}
+                  currentUser={currentUser}
+                  empresas={empresas}
                   onUpdate={updateTaskStatus}
                   setViewingTask={setViewingTask}
                 />
@@ -773,6 +844,7 @@ export default function App() {
               {activeTab === 'users' && currentUser?.role === 'ADMIN' && (
                 <UsersView 
                   users={users}
+                  empresas={empresas}
                   fetchUsers={fetchUsers}
                   showNotification={showNotification}
                 />
@@ -780,6 +852,7 @@ export default function App() {
               {activeTab === 'settings' && (
                 <SettingsView 
                   empresas={empresas}
+                  users={users}
                   templates={templates}
                   fetchData={fetchData}
                   handleDeleteEmpresa={handleDeleteEmpresa}
